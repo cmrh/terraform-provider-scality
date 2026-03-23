@@ -101,29 +101,6 @@ resource "local_file" "credentials" {
 }
 ```
 
-### Integration with AWS Secrets Manager
-
-```hcl
-resource "scality_console_account" "app" {
-  account_name = "production-app"
-  email        = "prod@example.com"
-  quota        = 500000000000
-}
-
-resource "aws_secretsmanager_secret" "scality_credentials" {
-  name = "scality/${scality_console_account.app.account_name}/credentials"
-}
-
-resource "aws_secretsmanager_secret_version" "scality_credentials" {
-  secret_id = aws_secretsmanager_secret.scality_credentials.id
-  secret_string = jsonencode({
-    account_name = scality_console_account.app.account_name
-    access_key   = scality_console_account.app.access_key
-    secret_key   = scality_console_account.app.secret_key
-    endpoint     = var.scality_endpoint
-  })
-}
-```
 
 ## Argument Reference
 
