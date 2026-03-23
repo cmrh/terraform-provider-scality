@@ -14,7 +14,7 @@ This guide will help you get started with the Scality OpenTofu/Terraform provide
 ## Step 1: Build the Provider
 
 ```bash
-cd /home/cyrus/Documents/Development/Scality/Terraform/Providers/terraform-provider-scality
+cd /path/to/repo
 make build
 ```
 

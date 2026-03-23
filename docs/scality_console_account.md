@@ -2,51 +2,45 @@
 
 Manages Scality accounts using the Console API with JWT token authentication. Accounts are created **without passwords** (security best practice) and persistent S3 credentials are generated automatically.
 
+## Prerequisites
+
+Console superadmin credentials must be created during Scality deployment via Ansible:
+
+```bash
+ansible-playbook -i env/s3config/inventory \
+  tooling-playbooks/create-superadmin-console-user.yml \
+  -e ui_username=admin -e ui_password=mySuperPassword
+```
+
 ## Example Usage
 
-### Basic Usage
+### Basic Usage (Recommended)
+
+**Always use environment variables for credentials** (never hardcode in `.tf` files):
+
+```bash
+export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
+export SCALITY_CONSOLE_USERNAME="admin"           # From Ansible deployment
+export SCALITY_CONSOLE_PASSWORD="mySuperPassword" # From Ansible deployment
+```
 
 ```hcl
 provider "scality" {
-  console_endpoint = "http://10.164.169.247:8080"
-  console_username = var.console_username
-  console_password = var.console_password
+  # Credentials loaded from environment variables
 }
 
 resource "scality_console_account" "example" {
   account_name = "my-app"
   email        = "myapp@example.com"
-  quota        = 50000000000  # 50GB
+  quota        = 53687091200  # 50GB
 }
 
-output "access_key" {
-  value     = scality_console_account.example.access_key
+output "s3_credentials" {
+  value = {
+    access_key = scality_console_account.example.access_key
+    secret_key = scality_console_account.example.secret_key
+  }
   sensitive = true
-}
-
-output "secret_key" {
-  value     = scality_console_account.example.secret_key
-  sensitive = true
-}
-```
-
-### Using Environment Variables
-
-```bash
-export SCALITY_CONSOLE_ENDPOINT="http://10.164.169.247:8080"
-export SCALITY_CONSOLE_USERNAME="admin"
-export SCALITY_CONSOLE_PASSWORD="admin-password"
-```
-
-```hcl
-provider "scality" {
-  # Configuration loaded from environment variables
-}
-
-resource "scality_console_account" "example" {
-  account_name = "myapp"
-  email        = "myapp@example.com"
-  quota        = 10000000000
 }
 ```
 
@@ -357,21 +351,21 @@ On `terraform destroy`:
 
 **Error**: `Missing Console Client Configuration`
 
-**Solution**: Ensure Console API credentials are configured:
+**Solution**: Configure Console API credentials via environment variables (recommended):
+```bash
+export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
+export SCALITY_CONSOLE_USERNAME="admin"
+export SCALITY_CONSOLE_PASSWORD="mySuperPassword"
+```
+
+Then in your Terraform configuration:
 ```hcl
 provider "scality" {
-  console_endpoint = "http://10.164.169.247:8080"
-  console_username = var.console_username
-  console_password = var.console_password
+  # Credentials loaded from environment variables
 }
 ```
 
-Or via environment variables:
-```bash
-export SCALITY_CONSOLE_ENDPOINT="http://10.164.169.247:8080"
-export SCALITY_CONSOLE_USERNAME="admin"
-export SCALITY_CONSOLE_PASSWORD="admin-password"
-```
+> **Security**: Never hardcode credentials in `.tf` files that may be committed to git.
 
 ### Authentication Failures
 
