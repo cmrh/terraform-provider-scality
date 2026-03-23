@@ -101,58 +101,6 @@ resource "scality_account" "integrated" {
 }
 ```
 
-### Save Credentials to File
-
-```hcl
-resource "scality_account" "app" {
-  name          = "backend-service"
-  email_address = "backend@example.com"
-  quota_max     = 100000000000
-}
-
-resource "local_file" "credentials" {
-  content = <<-EOT
-    [${scality_account.app.name}]
-    aws_access_key_id = ${scality_account.app.access_key}
-    aws_secret_access_key = ${scality_account.app.secret_key}
-
-    # Account Details
-    account_id = ${scality_account.app.id}
-    arn = ${scality_account.app.arn}
-    canonical_id = ${scality_account.app.canonical_id}
-  EOT
-
-  filename        = "./credentials/${scality_account.app.name}.ini"
-  file_permission = "0600"
-}
-```
-
-### Integration with AWS Secrets Manager
-
-```hcl
-resource "scality_account" "app" {
-  name          = "production-app"
-  email_address = "prod@example.com"
-  quota_max     = 500000000000
-}
-
-resource "aws_secretsmanager_secret" "scality_credentials" {
-  name = "scality/${scality_account.app.name}/credentials"
-}
-
-resource "aws_secretsmanager_secret_version" "scality_credentials" {
-  secret_id = aws_secretsmanager_secret.scality_credentials.id
-  secret_string = jsonencode({
-    account_name = scality_account.app.name
-    account_id   = scality_account.app.id
-    access_key   = scality_account.app.access_key
-    secret_key   = scality_account.app.secret_key
-    arn          = scality_account.app.arn
-    canonical_id = scality_account.app.canonical_id
-  })
-}
-```
-
 ## Argument Reference
 
 ### Required Arguments
