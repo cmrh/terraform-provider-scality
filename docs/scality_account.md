@@ -4,51 +4,37 @@ Manages Scality accounts using the IAM-style API with AWS Signature Version 4 au
 
 ## Example Usage
 
-### Basic Usage
+### Basic Usage (Recommended)
 
-```hcl
-provider "scality" {
-  endpoint   = "http://10.164.169.247"
-  access_key = var.scality_access_key
-  secret_key = var.scality_secret_key
-}
-
-resource "scality_account" "example" {
-  name          = "my-app"
-  email_address = "myapp@example.com"
-  quota_max     = 50000000000  # 50GB
-}
-
-output "access_key" {
-  value     = scality_account.example.access_key
-  sensitive = true
-}
-
-output "secret_key" {
-  value     = scality_account.example.secret_key
-  sensitive = true
-}
-```
-
-### Using Environment Variables
+**Always use environment variables for credentials** (never hardcode in `.tf` files):
 
 ```bash
-export SCALITY_ENDPOINT="http://10.164.169.247"
+export SCALITY_ENDPOINT="http://scality.example.com"
 export SCALITY_ACCESS_KEY="your-admin-access-key"
 export SCALITY_SECRET_KEY="your-admin-secret-key"
 ```
 
 ```hcl
 provider "scality" {
-  # Configuration loaded from environment variables
+  # Credentials loaded from environment variables
 }
 
 resource "scality_account" "example" {
-  name          = "myapp"
+  name          = "my-app"
   email_address = "myapp@example.com"
-  quota_max     = 10000000000
+  quota_max     = 53687091200  # 50GB
+}
+
+output "s3_credentials" {
+  value = {
+    access_key = scality_account.example.access_key
+    secret_key = scality_account.example.secret_key
+  }
+  sensitive = true
 }
 ```
+
+> **Security**: Never hardcode credentials in `.tf` files that may be committed to git.
 
 ### Multiple Accounts with Different Quotas
 
