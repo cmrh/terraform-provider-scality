@@ -82,32 +82,29 @@ This document explains the architectural decisions, design patterns, and impleme
 
 ### 1. Separation of Concerns
 
-**Decision**: Split IAM and Console clients into separate files.
+Decision: Split IAM and Console clients into separate files.
 
-**Reasoning**:
+Reasoning:
 - Different authentication mechanisms (AWS Sig V4 vs JWT)
 - Different API patterns and endpoints
 - Independent evolution of each API
 - Easier to maintain and test
 
-**Example**:
+Example:
 ```
 client.go          → IAM API (Accounts, IAM policies, etc.)
 console_client.go  → Console API (Users, permissions, etc.)
 ```
 
-**Benefits**:
-- Clear responsibility boundaries
-- No coupling between different API types
-- Easy to add third API client if needed
+Benefits: Clear responsibility boundaries, no coupling between different API types, easy to add third API client if needed.
 
 ---
 
 ### 2. DRY Principle with Pragmatism
 
-**Decision**: Apply DRY where it reduces complexity, not religiously.
+Decision: Apply DRY where it reduces complexity, not religiously.
 
-#### Where We Applied DRY ✅
+#### Where We Applied DRY
 
 **1. Shared Constants**
 ```go
@@ -118,25 +115,22 @@ const (
 )
 ```
 
-**Reasoning**: Changes once, benefits everywhere.
+Reasoning: Changes once, benefits everywhere.
 
 **2. Helper Method in IAM Client**
 ```go
 func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error)
 ```
 
-**Reasoning**:
-- Same request pattern for ALL IAM API calls
-- Reduces 160 lines of duplication to 40-line helper
-- Single place to add features (retry, metrics, etc.)
+Reasoning: Same request pattern for all IAM API calls. Reduces 160 lines of duplication to 40-line helper. Single place to add features (retry, metrics, etc.).
 
-#### Where We DIDN'T Apply DRY ❌
+#### Where We Didn't Apply DRY
 
 **1. Console Client HTTP Calls**
 
-**Decision**: Did NOT create a shared helper between IAM and Console clients.
+Decision: Did NOT create a shared helper between IAM and Console clients.
 
-**Reasoning**:
+Reasoning:
 ```go
 // IAM uses AWS Signature V4 signing
 headers, err := c.signRequest(method, url, payload)
@@ -147,24 +141,24 @@ httpReq.Header.Set("x-access-token", c.token)
 // Different enough that abstraction would add complexity
 ```
 
-**Rule of Thumb**:
-- **Duplicate** when abstractions would be more complex than the duplication
-- **Abstract** when the pattern is identical and changes together
+Rule of Thumb:
+- Duplicate when abstractions would be more complex than the duplication
+- Abstract when the pattern is identical and changes together
 
 ---
 
 ### 3. Context-First Design
 
-**Decision**: Every public API method accepts `context.Context` as the first parameter.
+Decision: Every public API method accepts `context.Context` as the first parameter.
 
-**Signature Pattern**:
+Signature Pattern:
 ```go
 func (c *Client) MethodName(ctx context.Context, params...) (result, error)
 ```
 
-**Reasoning**:
+Reasoning:
 
-1. **Cancellation Support**
+1. Cancellation Support
    ```go
    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
    defer cancel()
@@ -173,20 +167,20 @@ func (c *Client) MethodName(ctx context.Context, params...) (result, error)
    // Automatically cancelled after 5 seconds
    ```
 
-2. **Integration with Terraform**
+2. Integration with Terraform
    - Terraform provides context to resources
    - Propagating it through enables proper lifecycle management
 
-3. **Future-Proofing**
+3. Future-Proofing
    - Distributed tracing (OpenTelemetry)
    - Request cancellation
    - Deadline propagation
 
-4. **Standard Go Practice**
+4. Standard Go Practice
    - Idiomatic since Go 1.7
    - Expected by Go developers
 
-**Example Flow**:
+Example Flow:
 ```
 Terraform → Resource.Create(ctx) → Client.CreateAccount(ctx) → HTTP Request (with context)
                                                                          ↓
@@ -197,16 +191,16 @@ Terraform → Resource.Create(ctx) → Client.CreateAccount(ctx) → HTTP Reques
 
 ### 4. Constants Over Magic Values
 
-**Decision**: All configuration values are package-level constants.
+Decision: All configuration values are package-level constants.
 
-**Before** (Magic Values):
+Before (Magic Values):
 ```go
 params.Set("Version", "2010-05-08")
 req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 if tokenAge >= 84600 {
 ```
 
-**After** (Constants):
+After (Constants):
 ```go
 const (
     apiVersion      = "2010-05-08"
@@ -219,16 +213,16 @@ req.Header.Set("Content-Type", contentTypeForm)
 if tokenAge >= tokenSafetyMargin {
 ```
 
-**Benefits**:
+Benefits:
 
 | Benefit | Example |
 |---------|---------|
-| **Single source of truth** | Update API version in one place |
-| **Self-documenting** | `tokenSafetyMargin` explains purpose |
-| **Type safety** | Compiler catches typos |
-| **Easy refactoring** | Find all usages via IDE |
+| Single source of truth | Update API version in one place |
+| Self-documenting | `tokenSafetyMargin` explains purpose |
+| Type safety | Compiler catches typos |
+| Easy refactoring | Find all usages via IDE |
 
-**Placement Strategy**:
+Placement Strategy:
 ```go
 // Group by purpose
 const (
@@ -265,17 +259,13 @@ type ScalityClient struct {
 }
 ```
 
-**Design Decision**: Simple struct with minimal fields.
+Design Decision: Simple struct with minimal fields.
 
-**Reasoning**:
-- Easy to instantiate
-- Clear dependencies
-- Immutable after creation
-- No hidden state
+Reasoning: Easy to instantiate, clear dependencies, immutable after creation, no hidden state.
 
 #### The Helper Method Pattern
 
-**Core Design**:
+Core Design:
 ```go
 // Private helper - handles HTTP mechanics
 func (c *ScalityClient) doSignedRequest(
@@ -314,7 +304,7 @@ func (c *ScalityClient) CreateAccount(
 }
 ```
 
-**Why This Pattern Works**:
+Why This Pattern Works:
 
 1. **Clear Separation**
    - Helper: HTTP/network concerns
@@ -357,7 +347,7 @@ type ConsoleClient struct {
 }
 ```
 
-**Key Methods**:
+Key Methods:
 ```go
 // Automatic token management
 func (c *ConsoleClient) Authenticate(ctx context.Context) error {
@@ -381,7 +371,7 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, ...) {
 }
 ```
 
-**Why This Design**:
+Why This Design:
 
 1. **Automatic Token Refresh**
    - Methods check token existence
@@ -408,9 +398,9 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, ...) {
 
 #### Why NOT Use Helper Method Here?
 
-**Decision**: Console client doesn't use `doSignedRequest()` pattern.
+Decision: Console client doesn't use `doSignedRequest()` pattern.
 
-**Reasoning**:
+Reasoning:
 
 1. **Different Authentication**
    - Each request needs token header, not signature
@@ -431,10 +421,10 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, ...) {
    - Different status code handling per endpoint
    - Helper would need too many parameters
 
-**Guideline**:
-- If methods are 70% similar → Extract helper
-- If methods are 40% similar → Keep separate
-- **Console client is ~40% similar** → Kept separate
+Guideline:
+- If methods are 70% similar: Extract helper
+- If methods are 40% similar: Keep separate
+- Console client is ~40% similar: Kept separate
 
 ---
 
@@ -456,9 +446,9 @@ Delete(ctx, req, resp)  // terraform destroy
 
 ### Standard Resource Pattern
 
-**File Structure**: `resource_<name>.go`
+File Structure: `resource_<name>.go`
 
-**Example**: `resource_account.go`
+Example: `resource_account.go`
 
 ```go
 // 1. Define schema
@@ -506,7 +496,7 @@ func (r *ScalityAccountResource) Delete(ctx context.Context, ...) {
 }
 ```
 
-**Design Decisions**:
+Design Decisions:
 
 1. **No Update Method for Accounts**
    - Many Scality account fields are immutable
@@ -543,11 +533,11 @@ func (r *ScalityAccountResource) Delete(ctx context.Context, ...) {
 
 ### Step 1: Add to Client
 
-**Choose the Right Client**:
-- IAM API call? → `client.go`
-- Console API call? → `console_client.go`
+Choose the Right Client:
+- IAM API call: `client.go`
+- Console API call: `console_client.go`
 
-**For IAM API Example**:
+For IAM API Example:
 
 ```go
 // 1. Define response type (in client.go)
@@ -581,16 +571,16 @@ func (c *ScalityClient) ListAccounts(ctx context.Context, maxResults int) (*Acco
 }
 ```
 
-**That's it for IAM API!** The helper handles:
-- ✅ Setting Action and Version
-- ✅ AWS Signature signing
-- ✅ HTTP request creation with context
-- ✅ Request execution
-- ✅ Error handling
+The helper handles:
+- Setting Action and Version
+- AWS Signature signing
+- HTTP request creation with context
+- Request execution
+- Error handling
 
 ### Step 2: Add Data Source (Read-Only Resource)
 
-**Create**: `data_source_account_list.go`
+Create `data_source_account_list.go`:
 
 ```go
 package provider
@@ -650,7 +640,7 @@ func (d *AccountListDataSource) Read(ctx context.Context, req datasource.ReadReq
 
 ### Step 3: Register Data Source
 
-**In `provider.go`**:
+In `provider.go`:
 
 ```go
 func (p *ScalityProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
@@ -766,23 +756,23 @@ Is this an API call?
 ### Error Wrapping Pattern
 
 ```go
-// ✅ Good: Wrap with context
+// Good: Wrap with context
 if err != nil {
     return nil, fmt.Errorf("failed to create account: %w", err)
 }
 
-// ❌ Bad: Lose context
+// Bad: Lose context
 if err != nil {
     return nil, err
 }
 
-// ❌ Bad: Break error chain
+// Bad: Break error chain
 if err != nil {
     return nil, fmt.Errorf("failed to create account: %s", err)
 }
 ```
 
-**Why `%w` vs `%s`?**
+Why use `%w` instead of `%s`?
 
 ```go
 err := client.CreateAccount(ctx, req)
@@ -799,7 +789,7 @@ if errors.Is(err, context.DeadlineExceeded) {
 
 ### HTTP Status Code Handling
 
-**Pattern Used**:
+Pattern Used:
 
 ```go
 body, statusCode, err := c.doSignedRequest(ctx, action, params)
@@ -822,16 +812,13 @@ default:
 }
 ```
 
-**Design Decision**: Return status code from helper.
+Design Decision: Return status code from helper.
 
-**Why?**
-- Different methods need different status handling
-- 404 means different things (error in Create, ok in Read)
-- Business logic decides how to interpret codes
+Different methods need different status handling. A 404 means different things (error in Create, ok in Read), so business logic decides how to interpret codes.
 
 ### User-Facing Error Messages
 
-**In Resources**:
+In Resources:
 
 ```go
 if err != nil {
@@ -846,7 +833,7 @@ if err != nil {
 }
 ```
 
-**Special Case: Helpful Delete Errors**:
+Special Case: Helpful Delete Errors:
 
 ```go
 if statusCode == 409 {
@@ -867,7 +854,7 @@ if statusCode == 409 {
 }
 ```
 
-**Reasoning**: Help users solve problems without reading API docs.
+This helps users solve problems without reading API docs.
 
 ---
 
@@ -875,12 +862,7 @@ if statusCode == 409 {
 
 ### Terraform State Basics
 
-**What is State?**
-- Terraform's record of infrastructure
-- Stored in `terraform.tfstate`
-- Maps resources to real-world objects
-
-**Our Responsibility**: Keep state accurate.
+Terraform state is the record of infrastructure stored in `terraform.tfstate`. It maps resources to real-world objects. Our responsibility is to keep state accurate.
 
 ### Read Method: Drift Detection
 
@@ -908,22 +890,13 @@ func (r *ScalityAccountResource) Read(ctx context.Context, req resource.ReadRequ
 }
 ```
 
-**Why This Matters**:
-```bash
-# Someone deletes account outside Terraform
-aws iam delete-account --account-name myapp
-
-# Terraform detects drift
-terraform plan
-# Plan: 1 to add, 0 to change, 0 to destroy
-# (will recreate)
-```
+If someone deletes an account outside Terraform, the next `terraform plan` will detect the drift and plan to recreate it.
 
 ### Sensitive Data in State
 
-**Problem**: Access keys stored in state file.
+Problem: Access keys are stored in the state file.
 
-**Solution**: Mark as sensitive.
+Solution: Mark as sensitive.
 
 ```go
 "access_key": schema.StringAttribute{
@@ -932,7 +905,7 @@ terraform plan
 },
 ```
 
-**Important**: State file itself must be secured.
+Important: State file itself must be secured.
 
 ```hcl
 # terraform.tf - Secure state
@@ -946,7 +919,7 @@ terraform {
 }
 ```
 
-**Documentation Note**: Tell users to protect state file.
+Documentation should tell users to protect the state file.
 
 ---
 
@@ -954,16 +927,16 @@ terraform {
 
 ### 1. Credential Handling
 
-**Never Log Credentials**:
+Never log credentials:
 
 ```go
-// ✅ Good: Credentials stay private
+// Good: Credentials stay private
 tflog.Debug(ctx, "Creating account", map[string]interface{}{
     "name": data.Name.ValueString(),
     // DO NOT log access_key or secret_key
 })
 
-// ❌ Bad: Exposes credentials
+// Bad: Exposes credentials
 tflog.Debug(ctx, "Account created", map[string]interface{}{
     "access_key": account.AccessKey,  // NEVER DO THIS
 })
@@ -971,7 +944,7 @@ tflog.Debug(ctx, "Account created", map[string]interface{}{
 
 ### 2. Token Caching Security
 
-**Console Client Token Cache**:
+Console Client Token Cache:
 
 ```go
 // Use secure permissions
@@ -982,7 +955,7 @@ if err := os.WriteFile(cacheFile, data, filePermissions); err != nil {
 }
 ```
 
-**Cache Location**:
+Cache Location:
 ```go
 // Temporary directory (usually /tmp or C:\Temp)
 cacheDir := os.TempDir()
@@ -991,21 +964,18 @@ cacheDir := os.TempDir()
 cacheFile := filepath.Join(cacheDir, tokenCachePrefix+hash)
 ```
 
-**Why This Design**:
-- Temp directory usually cleaned on reboot
-- Unique per endpoint/username (no collisions)
-- Restrictive permissions (only current user)
+This design uses temporary directories that are cleaned on reboot, creates unique filenames per endpoint/username to avoid collisions, and sets restrictive permissions so only the current user can access tokens.
 
 ### 3. Environment Variable Support
 
-**From `.env.example`**:
+Example configuration:
 ```bash
 export SCALITY_ENDPOINT="http://10.164.169.247"
 export SCALITY_ACCESS_KEY="..."
 export SCALITY_SECRET_KEY="..."
 ```
 
-**Provider reads automatically**:
+Provider reads automatically:
 ```go
 func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
     // Prefer config, fallback to env
@@ -1017,10 +987,7 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 }
 ```
 
-**Benefits**:
-- Don't commit credentials
-- CI/CD friendly
-- 12-factor app compliant
+Benefits: credentials are not committed to version control, CI/CD integration is simpler, and follows 12-factor app principles.
 
 ---
 
@@ -1028,7 +995,7 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 ### Unit Testing Approach
 
-**Mock HTTP Client**:
+Mock HTTP Client:
 
 ```go
 // Create mock HTTP client
@@ -1065,7 +1032,7 @@ func TestCreateAccount(t *testing.T) {
 
 ### Integration Testing
 
-**Acceptance Tests** (with real API):
+Acceptance Tests (with real API):
 
 ```go
 func TestAccScalityAccount_basic(t *testing.T) {
@@ -1087,7 +1054,7 @@ func TestAccScalityAccount_basic(t *testing.T) {
 
 ### Table-Driven Tests
 
-**Recommended Pattern**:
+Recommended Pattern:
 
 ```go
 func TestHandleStatusCode(t *testing.T) {
@@ -1130,11 +1097,11 @@ func TestHandleStatusCode(t *testing.T) {
 
 #### 1. Adding More Resources
 
-**Current**:
+Current resources:
 - `scality_account` (IAM)
 - `scality_console_account` (Console)
 
-**Easy to Add**:
+Easy to add:
 ```
 resource_bucket.go          → S3 bucket resource
 resource_iam_user.go        → IAM user resource
@@ -1142,7 +1109,7 @@ resource_iam_policy.go      → IAM policy resource
 resource_group.go           → User group resource
 ```
 
-**Pattern is Established**:
+Pattern:
 1. Add client method
 2. Create resource file
 3. Register in provider.go
@@ -1150,14 +1117,14 @@ resource_group.go           → User group resource
 
 #### 2. Data Sources for Read Operations
 
-**Future**:
+Future data sources:
 ```go
 data_source_account.go       → Read single account
 data_source_account_list.go  → List all accounts
 data_source_bucket.go        → Read bucket info
 ```
 
-**Usage**:
+Usage:
 ```hcl
 # Read existing account
 data "scality_account" "existing" {
@@ -1176,7 +1143,7 @@ resource "aws_iam_policy" "s3_access" {
 
 #### 3. Client Enhancements
 
-**Adding Features to Helper Method**:
+Adding Features to Helper Method:
 
 ```go
 // Current
@@ -1210,11 +1177,11 @@ func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, para
 }
 ```
 
-**Impact**: All API calls get retry automatically!
+All API calls get retry automatically when added to the helper.
 
 #### 4. Observability
 
-**Future Enhancement**:
+Future Enhancement:
 
 ```go
 func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error) {
@@ -1232,15 +1199,11 @@ func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, para
 }
 ```
 
-**Benefits**:
-- Performance monitoring
-- Distributed tracing
-- Error rate tracking
-- No changes to resources needed
+Benefits: performance monitoring, distributed tracing, and error rate tracking can be added without changing resources.
 
 #### 5. Alternative Authentication
 
-**Adding OAuth2 Support**:
+Adding OAuth2 Support:
 
 ```go
 // New client type
@@ -1274,13 +1237,13 @@ type AccountCreator interface {
 
 ### When to Abstract
 
-**✅ Extract when**:
+Extract when:
 - Used 3+ times
 - Changes together always
 - Clear single responsibility
 - Reduces complexity
 
-**❌ Don't extract when**:
+Don't extract when:
 - Used only twice
 - Needs many parameters
 - Changes independently
@@ -1288,19 +1251,19 @@ type AccountCreator interface {
 
 ### Complexity Budget
 
-**Target**:
+Target:
 - Client method: < 50 lines
 - Resource method: < 80 lines
 - Helper function: < 30 lines
 
-**If exceeded**:
+If exceeded:
 1. Can you extract a helper?
 2. Can you simplify logic?
 3. Is this inherently complex? (then document well)
 
 ### Cognitive Load Reduction
 
-**Good**:
+Good:
 ```go
 // Clear, linear flow
 func CreateAccount(ctx context.Context, req Request) (*Response, error) {
@@ -1318,7 +1281,7 @@ func CreateAccount(ctx context.Context, req Request) (*Response, error) {
 }
 ```
 
-**Bad**:
+Bad:
 ```go
 // Nested, hard to follow
 func CreateAccount(ctx context.Context, req Request) (*Response, error) {
@@ -1355,7 +1318,7 @@ When adding new code:
 
 ### Documentation Standards
 
-**Every Public Function**:
+Every Public Function:
 ```go
 // CreateAccount creates a new Scality account with S3 credentials.
 //
@@ -1365,7 +1328,7 @@ When adding new code:
 func (c *ScalityClient) CreateAccount(ctx context.Context, req AccountCreateRequest) (*AccountCreateResponse, error)
 ```
 
-**Complex Logic**:
+Complex Logic:
 ```go
 // Check if token is expired
 // Use safety margin (23.5 hours) to refresh before actual expiry (24 hours)
@@ -1379,7 +1342,7 @@ if tokenAge >= tokenSafetyMargin {
 
 ### Versioning Strategy
 
-**When to Bump Version**:
+When to Bump Version:
 
 | Change | Version | Example |
 |--------|---------|---------|
@@ -1466,60 +1429,60 @@ func (c *ConsoleClient) NewFeature(ctx context.Context, param string) (*Response
 
 ### Key Takeaways
 
-1. **Separation of Concerns**
+1. Separation of Concerns
    - IAM client for AWS Signature V4 API
    - Console client for JWT-based API
    - Clean boundaries, independent evolution
 
-2. **DRY with Pragmatism**
+2. DRY with Pragmatism
    - Helper methods where patterns are identical
    - Keep separate when abstraction adds complexity
    - Share constants, not necessarily code
 
-3. **Context-First Design**
+3. Context-First Design
    - All public methods accept context
    - Enables cancellation and timeouts
    - Future-proof for tracing
 
-4. **Constants for Configuration**
+4. Constants for Configuration
    - No magic values
    - Self-documenting code
    - Easy maintenance
 
-5. **Simple Error Handling**
+5. Simple Error Handling
    - Wrap with context (`%w`)
    - Meaningful messages
    - Help users solve problems
 
-6. **Extensibility by Design**
+6. Extensibility by Design
    - Easy to add new API calls
    - Pattern established for resources
    - Helper methods benefit all callers
 
-### Design Philosophy
+Design Philosophy:
 
-> **"Make it work, make it right, make it fast"**
->
-> We prioritize:
-> 1. Correctness (does it work?)
-> 2. Maintainability (can we fix/extend it easily?)
-> 3. Performance (is it fast enough?)
->
-> In that order.
+"Make it work, make it right, make it fast"
 
-### Final Notes
+We prioritize:
+1. Correctness (does it work?)
+2. Maintainability (can we fix/extend it easily?)
+3. Performance (is it fast enough?)
+
+In that order.
+
+Final Notes:
 
 This architecture balances:
-- **Simplicity** vs **DRY** → Simple wins when DRY adds complexity
-- **Abstraction** vs **Clarity** → Clarity wins when abstraction obscures
-- **Features** vs **Complexity** → Only add what's needed
+- Simplicity vs DRY: Simple wins when DRY adds complexity
+- Abstraction vs Clarity: Clarity wins when abstraction obscures
+- Features vs Complexity: Only add what's needed
 
-**The Goal**: Code that a new developer can understand in 30 minutes and confidently modify.
+The goal is code that a new developer can understand in 30 minutes and confidently modify.
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2024-01-13
-**Author**: Technical Architecture Team
-**Status**: Living Document (update as architecture evolves)
+Document Version: 1.0
+Last Updated: 2024-01-13
+Author: Technical Architecture Team
+Status: Living Document (update as architecture evolves)
 

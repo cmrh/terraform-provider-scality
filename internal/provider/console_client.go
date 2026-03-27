@@ -182,6 +182,7 @@ type ConsoleAccountCreateRequest struct {
 	AccountName string `json:"accountName"`
 	Email       string `json:"email"`
 	Quota       int64  `json:"quota,omitempty"`
+	Password    string `json:"password,omitempty"`
 }
 
 // ConsoleAccountCreateResponse represents the Console API account creation response

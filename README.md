@@ -140,9 +140,11 @@ provider "scality" {
 }
 
 resource "scality_console_account" "app" {
-  account_name = "myapp"
-  email        = "myapp@example.com"
-  quota        = 1073741824  # 1GB in bytes
+  account_name             = "myapp"
+  email                    = "myapp@example.com"
+  quota                    = 1073741824  # 1GB in bytes
+  generate_random_password = true        # Optional: for Console UI access
+  password_length          = 20          # Optional: default 16, minimum 16
 }
 ```
 
@@ -217,14 +219,17 @@ Manages accounts using the Console API with JWT authentication.
 - `account_name` (Required) - Account name
 - `email` (Required) - Email address
 - `quota` (Optional) - Storage quota in bytes (default: unlimited)
+- `generate_random_password` (Optional) - Generate random Console password (default: false)
+- `password_length` (Optional) - Password length, minimum 16 (default: 16)
 
 **Exported Attributes:**
 - `id`, `created_at`
+- `password` (sensitive, computed) - Generated Console password if enabled
 - `access_key`, `secret_key` (sensitive, auto-generated)
 
 **Key Features:**
-- Password-free account creation
-- Persistent S3 credentials
+- Optional random password generation for Console UI access
+- Persistent S3 credentials (not password-linked)
 - JWT token caching (23.5 hours)
 
 [Full Documentation →](docs/scality_console_account.md)

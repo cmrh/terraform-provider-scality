@@ -8,7 +8,7 @@ Terraform/OpenTofu provider for managing Scality accounts. Supports both IAM-sty
 
 ### IAM API Resources (AWS Signature V4 Authentication)
 
-- **[scality_account](scality_account.md)** - Manage Scality accounts via IAM API
+- [scality_account](scality_account.md) - Manage Scality accounts via IAM API
   - Create accounts with S3 credentials
   - Manage quotas and metadata
   - Delete accounts with comprehensive error handling
@@ -16,7 +16,7 @@ Terraform/OpenTofu provider for managing Scality accounts. Supports both IAM-sty
 
 ### Console API Resources (JWT Authentication)
 
-- **[scality_console_account](scality_console_account.md)** - Manage Scality accounts via Console API
+- [scality_console_account](scality_console_account.md) - Manage Scality accounts via Console API
   - Create accounts without passwords (security best practice)
   - Generate persistent S3 access keys
   - JWT token authentication with caching (23.5hr)
@@ -26,15 +26,15 @@ Terraform/OpenTofu provider for managing Scality accounts. Supports both IAM-sty
 
 | Feature | scality_account (IAM) | scality_console_account (Console) |
 |---------|----------------------|-----------------------------------|
-| **Authentication** | AWS Signature V4 | JWT Token |
-| **Account Creation** | Standard | Without password |
-| **Credentials** | S3 access keys | Persistent S3 access keys |
-| **Token Caching** | N/A | 23.5 hours |
-| **Deletion** | Single step | Two-step (account + user) |
-| **Attribute: Name** | `name` | `account_name` |
-| **Attribute: Email** | `email_address` | `email` |
-| **Attribute: Quota** | `quota_max` | `quota` |
-| **Use Case** | IAM-style management | Console UI integration |
+| Authentication | AWS Signature V4 | JWT Token |
+| Account Creation | Standard | Without password |
+| Credentials | S3 access keys | Persistent S3 access keys |
+| Token Caching | N/A | 23.5 hours |
+| Deletion | Single step | Two-step (account + user) |
+| Attribute: Name | `name` | `account_name` |
+| Attribute: Email | `email_address` | `email` |
+| Attribute: Quota | `quota_max` | `quota` |
+| Use Case | IAM-style management | Console UI integration |
 
 ## Requirements
 
@@ -102,25 +102,25 @@ output "access_key" {
 ## Documentation
 
 ### Getting Started
-- **[Quick Start Guide](QUICKSTART.md)** - Get started in minutes with step-by-step instructions
-- **[Provider Configuration](provider.md)** - Configure the provider for IAM and Console APIs
+- [Quick Start Guide](QUICKSTART.md) - Get started in minutes with step-by-step instructions
+- [Provider Configuration](provider.md) - Configure the provider for IAM and Console APIs
 
 ### Resource Documentation
-- **[scality_account](scality_account.md)** - IAM API resource (AWS Signature V4)
+- [scality_account](scality_account.md) - IAM API resource (AWS Signature V4)
   - Create/delete accounts
   - Generate S3 credentials
   - Manage quotas and metadata
   - Import existing accounts
 
-- **[scality_console_account](scality_console_account.md)** - Console API resource (JWT)
+- [scality_console_account](scality_console_account.md) - Console API resource (JWT)
   - Password-free account creation
   - Persistent S3 keys
   - Token caching
   - Two-step deletion
 
 ### Additional Resources
-- **[Examples](EXAMPLES.md)** - Common patterns and advanced use cases
-- **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
+- [Examples](EXAMPLES.md) - Common patterns and advanced use cases
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
 
 ## Provider Configuration
 
