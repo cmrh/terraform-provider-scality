@@ -1,6 +1,6 @@
 # scality_console_account - Manage Scality Accounts via Console API
 
-Manages Scality accounts using the Console API with JWT token authentication. Accounts are created **without passwords** (security best practice) and persistent S3 credentials are generated automatically.
+Manages Scality accounts using the Console API with JWT token authentication. Optionally generates random passwords for Console access. Persistent S3 credentials are generated automatically.
 
 ## Prerequisites
 
@@ -39,6 +39,30 @@ output "s3_credentials" {
   value = {
     access_key = scality_console_account.example.access_key
     secret_key = scality_console_account.example.secret_key
+  }
+  sensitive = true
+}
+```
+
+### With Console Password Generation
+
+Generate a random password for Console UI access:
+
+```hcl
+resource "scality_console_account" "with_password" {
+  account_name             = "admin-user"
+  email                    = "admin@example.com"
+  quota                    = 53687091200  # 50GB
+  generate_random_password = true
+  password_length          = 20  # Optional, default 16, minimum 16
+}
+
+output "console_credentials" {
+  value = {
+    account_name = scality_console_account.with_password.account_name
+    password     = scality_console_account.with_password.password
+    access_key   = scality_console_account.with_password.access_key
+    secret_key   = scality_console_account.with_password.secret_key
   }
   sensitive = true
 }
@@ -106,6 +130,8 @@ resource "local_file" "credentials" {
 ### Optional Arguments
 
 - `quota` (Number, Optional, Default: 0) - Maximum amount of bytes storable by the account. `0` means unlimited.
+- `generate_random_password` (Boolean, Optional, Default: false) - Generate a random password for Console access.
+- `password_length` (Number, Optional, Default: 16) - Length of generated password. Minimum 16 characters. Only used if `generate_random_password` is true.
 
 ## Attribute Reference
 
@@ -113,6 +139,7 @@ In addition to the arguments, the following attributes are exported:
 
 - `id` (String) - Account identifier (same as `account_name`).
 - `created_at` (String) - Account creation timestamp in ISO 8601 format.
+- `password` (String, Sensitive, Computed) - Generated Console password. Only available if `generate_random_password` is true. This value is only known after creation and cannot be retrieved later.
 - `access_key` (String, Sensitive) - S3 API access key (persistent credentials, generated automatically). This value is only known after creation and cannot be retrieved later.
 - `secret_key` (String, Sensitive) - S3 API secret key (persistent credentials, generated automatically). This value is only known after creation and cannot be retrieved later.
 
@@ -151,7 +178,7 @@ The provider uses JWT token authentication with the Console API:
 ### API Endpoints Used
 
 - **Authenticate**: `POST /_/console/authenticate`
-- **Create Account**: `POST /_/console/vault/accounts` (creates account without password)
+- **Create Account**: `POST /_/console/vault/accounts` (optionally includes password field)
 - **Generate Access Key**: `POST /_/console/vault/accounts/{name}/keys` (persistent credentials)
 - **Get Account**: `GET /_/console/vault/accounts/{name}` (for state refresh)
 - **Delete Account**: Two-step process:
@@ -163,7 +190,8 @@ The provider uses JWT token authentication with the Console API:
 | Feature | scality_account (IAM) | scality_console_account (Console) |
 |---------|----------------------|-----------------------------------|
 | **Authentication** | AWS Signature V4 (per-request) | JWT Token (cached 23.5hrs) |
-| **Account Creation** | Standard process | **Without password** (security best practice) |
+| **Account Creation** | Standard process | With or without password (optional) |
+| **Password Generation** | Not supported | Optional random password generation |
 | **Credentials Type** | Standard S3 access keys | **Persistent keys** (not password-linked) |
 | **Performance** | Per-request signing overhead | Cached token reduces overhead |
 | **Deletion Process** | Single-step | Two-step (account + user) |
@@ -171,17 +199,27 @@ The provider uses JWT token authentication with the Console API:
 | **Email Attribute** | `email_address` | `email` |
 | **Quota Attribute** | `quota_max` | `quota` |
 | **Provider Config** | `endpoint`, `access_key`, `secret_key` | `console_endpoint`, `console_username`, `console_password` |
-| **Use Case** | Traditional IAM-style management | Console UI integration, no password management |
+| **Use Case** | Traditional IAM-style management | Console UI integration with optional password |
 
 ## Security Considerations
 
-### 1. Password-Free Account Creation
+### 1. Optional Password Generation
 
-Accounts are created **without passwords** by design:
-- **More secure** than password-linked credentials
-- Persistent keys won't be invalidated by password changes
+Accounts can be created with or without Console passwords:
+
+**Without Password (Default)**:
+- More secure for service accounts and automation
+- Persistent S3 keys won't be invalidated by password changes
 - Eliminates password management overhead
-- Follows modern security best practices
+
+**With Random Password** (`generate_random_password = true`):
+- Generates cryptographically secure random passwords (minimum 16 characters)
+- Useful for human Console UI access
+- Password includes uppercase, lowercase, digits, and special characters
+- Excludes ambiguous characters (0, O, 1, l, I) for clarity
+- Password stored in Terraform state as sensitive value
+
+**Note**: According to API documentation, password-linked credentials are automatically rotated when passwords change. For persistent access keys, the provider generates separate credentials via the `POST /_/console/vault/accounts/{name}/keys` endpoint.
 
 ### 2. Token Caching Security
 
@@ -309,17 +347,20 @@ echo ".terraform/" >> .gitignore
 ### Creation
 ```hcl
 resource "scality_console_account" "example" {
-  account_name = "myapp"
-  email        = "myapp@example.com"
-  quota        = 10000000000
+  account_name             = "myapp"
+  email                    = "myapp@example.com"
+  quota                    = 10000000000
+  generate_random_password = true  # Optional
+  password_length          = 20    # Optional, defaults to 16
 }
 ```
 
 On `terraform apply`:
 1. Provider authenticates to Console API (or uses cached token)
-2. Creates account without password
-3. Generates persistent S3 access keys
-4. Returns credentials in state (encrypted if using remote state)
+2. Generates random password if requested (cryptographically secure, minimum 16 chars)
+3. Creates account with optional password
+4. Generates persistent S3 access keys
+5. Returns credentials in state (encrypted if using remote state)
 
 ### Updates
 

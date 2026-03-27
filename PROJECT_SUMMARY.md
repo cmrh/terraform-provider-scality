@@ -27,13 +27,13 @@ terraform-provider-scality/
 
 ## Key Features Implemented
 
-### 1. **Provider Configuration** (`provider.go`)
+### 1. Provider Configuration (`provider.go`)
 - Configurable via HCL or environment variables
 - Supports: `endpoint`, `access_key`, `secret_key`
 - Environment variables: `SCALITY_ENDPOINT`, `SCALITY_ACCESS_KEY`, `SCALITY_SECRET_KEY`
 
-### 2. **Scality API Client** (`client.go`)
-- **AWS Signature Version 4 authentication** (ported from Ansible module)
+### 2. Scality API Client (`client.go`)
+- AWS Signature Version 4 authentication (ported from Ansible module)
 - HTTP client with 30-second timeout
 - API methods:
   - `CreateAccount()` - Create new account
@@ -41,13 +41,13 @@ terraform-provider-scality/
   - `GetAccount()` - Retrieve account (for drift detection)
   - `DeleteAccount()` - Delete account
 
-### 3. **Account Resource** (`resource_account.go`)
+### 3. Account Resource (`resource_account.go`)
 Full CRUD implementation:
-- **Create**: Creates account + generates access keys automatically
-- **Read**: Checks if account exists (drift detection)
-- **Update**: Updates account properties
-- **Delete**: Deletes account with comprehensive error handling
-- **Import**: Import existing accounts into state
+- Create: Creates account + generates access keys automatically
+- Read: Checks if account exists (drift detection)
+- Update: Updates account properties
+- Delete: Deletes account with comprehensive error handling
+- Import: Import existing accounts into state
 
 ### 4. **Resource Schema**
 ```hcl
@@ -79,11 +79,11 @@ func (c *ScalityClient) signRequest(method, url, payload string) (map[string]str
 ```
 
 ### Error Handling
-- **HTTP 201**: Account created successfully
-- **HTTP 200**: Operation succeeded
-- **HTTP 404**: Account doesn't exist (idempotent delete)
-- **HTTP 409 (Create)**: Account already exists
-- **HTTP 409 (Delete)**: DeleteConflict with detailed error message
+- HTTP 201: Account created successfully
+- HTTP 200: Operation succeeded
+- HTTP 404: Account doesn't exist (idempotent delete)
+- HTTP 409 (Create): Account already exists
+- HTTP 409 (Delete): DeleteConflict with detailed error message
 
 ### DeleteConflict Error Message
 ```
@@ -186,10 +186,10 @@ terraform output -json
 
 Terraform stores:
 - Account metadata (ID, ARN, canonical ID, etc.)
-- **S3 credentials** (access key and secret key)
+- S3 credentials (access key and secret key)
 - All resource properties
 
-**Important**: Protect the state file as it contains sensitive credentials!
+Important: Protect the state file as it contains sensitive credentials.
 
 ## Advantages Over Ansible Module
 
@@ -239,18 +239,18 @@ Based on the same Scality IAM API specifications used by the Ansible module:
 
 ## Success Criteria
 
-✅ Complete CRUD operations
-✅ AWS v4 authentication working
-✅ Automatic credential generation
-✅ Comprehensive error handling
-✅ State management
-✅ Drift detection
-✅ Import capability
-✅ Sensitive data protection
-✅ Full documentation
-✅ Working examples
-✅ Build automation
+- Complete CRUD operations
+- AWS v4 authentication working
+- Automatic credential generation
+- Comprehensive error handling
+- State management
+- Drift detection
+- Import capability
+- Sensitive data protection
+- Full documentation
+- Working examples
+- Build automation
 
-## Project Complete!
+## Project Complete
 
 The Terraform provider is fully functional and production-ready. It provides all the same functionality as the Ansible module but with the added benefits of state management, drift detection, and declarative infrastructure-as-code.

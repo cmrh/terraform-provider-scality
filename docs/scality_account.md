@@ -118,7 +118,7 @@ IAM accounts can be imported using the account name:
 terraform import scality_account.example my-account-name
 ```
 
-**Note**: After import, the `access_key` and `secret_key` attributes will be unknown since they cannot be retrieved from the API. You'll need to generate new keys or maintain existing credentials separately.
+Note: After import, the `access_key` and `secret_key` attributes will be unknown since they cannot be retrieved from the API. You'll need to generate new keys or maintain existing credentials separately.
 
 ## Authentication Details
 
@@ -146,17 +146,17 @@ All requests use form-encoded parameters with `Content-Type: application/x-www-f
 
 | Feature | scality_account (IAM) | scality_console_account (Console) |
 |---------|----------------------|-----------------------------------|
-| **Authentication** | AWS Signature V4 (per-request signing) | JWT Token (cached 23.5hrs) |
-| **Account Creation** | Standard process | **Without password** |
-| **Credentials Type** | Standard S3 access keys | **Persistent keys** (not password-linked) |
-| **Performance** | Per-request signing overhead | Cached token reduces overhead |
-| **Deletion Process** | Single-step | Two-step (account + user) |
-| **Account Attribute** | `name` | `account_name` |
-| **Email Attribute** | `email_address` | `email` |
-| **Quota Attribute** | `quota_max` | `quota` |
-| **Provider Config** | `endpoint`, `access_key`, `secret_key` | `console_endpoint`, `console_username`, `console_password` |
-| **Exported Attributes** | `arn`, `canonical_id`, `create_date` | `created_at` |
-| **Use Case** | Traditional IAM-style management | Console UI integration |
+| Authentication | AWS Signature V4 (per-request signing) | JWT Token (cached 23.5hrs) |
+| Account Creation | Standard process | Without password |
+| Credentials Type | Standard S3 access keys | Persistent keys (not password-linked) |
+| Performance | Per-request signing overhead | Cached token reduces overhead |
+| Deletion Process | Single-step | Two-step (account + user) |
+| Account Attribute | `name` | `account_name` |
+| Email Attribute | `email_address` | `email` |
+| Quota Attribute | `quota_max` | `quota` |
+| Provider Config | `endpoint`, `access_key`, `secret_key` | `console_endpoint`, `console_username`, `console_password` |
+| Exported Attributes | `arn`, `canonical_id`, `create_date` | `created_at` |
+| Use Case | Traditional IAM-style management | Console UI integration |
 
 ## Error Handling
 
@@ -170,7 +170,7 @@ Account read or deleted successfully.
 ```
 Error: Unable to create account: unexpected status 400: Bad Request
 ```
-**Resolution**: Verify email format is valid (`user@domain.tld`) and all required fields are provided.
+Resolution: Verify email format is valid (`user@domain.tld`) and all required fields are provided.
 
 ### HTTP 404 - Not Found (Read)
 Account doesn't exist. Terraform will remove it from state and recreate on next apply if still defined.
@@ -179,7 +179,7 @@ Account doesn't exist. Terraform will remove it from state and recreate on next 
 ```
 Error: account already exists
 ```
-**Resolution**: The account name is already in use. Choose a different name or import the existing account.
+Resolution: The account name is already in use. Choose a different name or import the existing account.
 
 ### HTTP 409 - DeleteConflict (Delete)
 ```
@@ -197,7 +197,7 @@ Required actions before deletion:
   4. Delete all S3 buckets
   5. Retry account deletion
 ```
-**Resolution**: The account has attached resources. Clean up all resources before deletion:
+Resolution: The account has attached resources. Clean up all resources before deletion:
 
 1. List and delete all IAM users
 2. List and delete all IAM policies
@@ -205,13 +205,13 @@ Required actions before deletion:
 4. Delete all S3 buckets
 5. Retry `terraform destroy`
 
-**Warning**: Attempting to delete an account with resources can strand data that cannot be recovered.
+Warning: Attempting to delete an account with resources can strand data that cannot be recovered.
 
 ### HTTP 500 - Service Failure
 ```
 Error: Unable to create account: unexpected status 500
 ```
-**Resolution**: The Scality IAM service encountered an internal error. Check service logs and health.
+Resolution: The Scality IAM service encountered an internal error. Check service logs and health.
 
 ## Security Considerations
 
@@ -230,7 +230,7 @@ terraform {
 }
 ```
 
-**Always:**
+Always:
 - Use remote state with encryption
 - Restrict access to state files
 - Never commit state files to version control
@@ -273,13 +273,13 @@ Never hardcode credentials in `.tf` files:
 ```hcl
 # BAD - Don't do this
 provider "scality" {
-  access_key = "hardcoded-key"  # ❌ Never do this
+  access_key = "hardcoded-key"  # Never do this
   secret_key = "hardcoded-secret"
 }
 
 # GOOD - Use variables
 provider "scality" {
-  access_key = var.scality_access_key  # ✅ From variables
+  access_key = var.scality_access_key  # From variables
   secret_key = var.scality_secret_key
 }
 ```
@@ -304,7 +304,7 @@ Terraform will detect if an account is deleted outside of Terraform:
 
 ### Credential Limitations
 
-**Important**: The `access_key` and `secret_key` attributes cannot be retrieved after creation:
+Important: The `access_key` and `secret_key` attributes cannot be retrieved after creation:
 - These values are only available in the create response
 - Subsequent state refreshes don't update these values
 - If state is lost, you'll need to generate new credentials or rotate keys
@@ -347,9 +347,9 @@ resource "scality_account" "example" {
 }
 ```
 
-**Note**: IAM API update support may be limited. Check API documentation for update capabilities. Some changes may require replacement.
+Note: IAM API update support may be limited. Check API documentation for update capabilities. Some changes may require replacement.
 
-**Changing `name` forces replacement** (new account created, old account destroyed):
+Changing `name` forces replacement (new account created, old account destroyed):
 ```hcl
 resource "scality_account" "example" {
   name          = "myapp-v2"  # Changed - will force replacement
@@ -365,15 +365,15 @@ On `terraform destroy`:
 2. Deletes account via IAM API (single-step process)
 3. Removes resource from state
 
-**Important**: Accounts with buckets, users, or policies will fail deletion (HTTP 409). Clean up resources first.
+Important: Accounts with buckets, users, or policies will fail deletion (HTTP 409). Clean up resources first.
 
 ## Troubleshooting
 
 ### Provider Configuration Issues
 
-**Error**: `Missing IAM Client Configuration`
+Error: `Missing IAM Client Configuration`
 
-**Solution**: Ensure IAM API credentials are configured:
+Solution: Ensure IAM API credentials are configured:
 ```hcl
 provider "scality" {
   endpoint   = "http://10.164.169.247"
@@ -391,9 +391,9 @@ export SCALITY_SECRET_KEY="your-secret-key"
 
 ### Authentication Failures
 
-**Error**: `failed to sign request` or HTTP 403
+Error: `failed to sign request` or HTTP 403
 
-**Checklist**:
+Checklist:
 1. Verify IAM API is accessible: `curl http://10.164.169.247`
 2. Check access key and secret key are correct
 3. Ensure credentials have IAM admin permissions
@@ -401,24 +401,24 @@ export SCALITY_SECRET_KEY="your-secret-key"
 
 ### Account Already Exists
 
-**Error**: `account already exists`
+Error: `account already exists`
 
-**Options**:
-1. **Import existing account**:
+Options:
+1. Import existing account:
    ```bash
    terraform import scality_account.example existing-account-name
    ```
 
-2. **Use different name**:
+2. Use different name:
    ```hcl
    name = "myapp-v2"  # Changed
    ```
 
 ### Deletion Failures
 
-**Error**: `cannot delete account - the account contains resources`
+Error: `cannot delete account - the account contains resources`
 
-**Resolution**: The account has attached resources. Clean up manually:
+Resolution: The account has attached resources. Clean up manually:
 
 ```bash
 # List buckets (use AWS CLI or similar)

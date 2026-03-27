@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"math/big"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -29,13 +31,61 @@ type ConsoleAccountResource struct {
 
 // ConsoleAccountResourceModel describes the resource data model
 type ConsoleAccountResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	AccountName types.String `tfsdk:"account_name"`
-	Email       types.String `tfsdk:"email"`
-	Quota       types.Int64  `tfsdk:"quota"`
-	CreatedAt   types.String `tfsdk:"created_at"`
-	AccessKey   types.String `tfsdk:"access_key"`
-	SecretKey   types.String `tfsdk:"secret_key"`
+	ID                     types.String `tfsdk:"id"`
+	AccountName            types.String `tfsdk:"account_name"`
+	Email                  types.String `tfsdk:"email"`
+	Quota                  types.Int64  `tfsdk:"quota"`
+	GenerateRandomPassword types.Bool   `tfsdk:"generate_random_password"`
+	PasswordLength         types.Int64  `tfsdk:"password_length"`
+	Password               types.String `tfsdk:"password"`
+	CreatedAt              types.String `tfsdk:"created_at"`
+	AccessKey              types.String `tfsdk:"access_key"`
+	SecretKey              types.String `tfsdk:"secret_key"`
+}
+
+const (
+	// Password generation constants
+	minPasswordLength     = 16
+	defaultPasswordLength = 16
+)
+
+// generateRandomPassword generates a cryptographically secure random password.
+//
+// The password uses crypto/rand for secure randomness and includes:
+//   - Uppercase letters (excluding O)
+//   - Lowercase letters (excluding l)
+//   - Digits (excluding 0, 1)
+//   - Special characters (!@#$%^&*-_=+?)
+//
+// Ambiguous characters (0, O, 1, l, I) are excluded for clarity.
+// Minimum length is 16 characters regardless of the requested length.
+//
+// Returns the generated password or an error if randomness generation fails.
+func generateRandomPassword(length int) (string, error) {
+	if length < minPasswordLength {
+		length = minPasswordLength
+	}
+
+	// Character sets - excluding ambiguous characters (0, O, 1, l, I)
+	const (
+		upperChars   = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+		lowerChars   = "abcdefghijkmnopqrstuvwxyz"
+		digitChars   = "23456789"
+		specialChars = "!@#$%^&*-_=+?"
+	)
+
+	allChars := upperChars + lowerChars + digitChars + specialChars
+
+	password := make([]byte, length)
+	for i := 0; i < length; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(allChars))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random password: %w", err)
+		}
+		password[i] = allChars[num.Int64()]
+	}
+
+	return string(password), nil
 }
 
 func (r *ConsoleAccountResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -45,7 +95,7 @@ func (r *ConsoleAccountResource) Metadata(ctx context.Context, req resource.Meta
 func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a Scality account via Console API with JWT authentication. " +
-			"Accounts are created without passwords and persistent S3 credentials are generated automatically.",
+			"Optionally generates a random password for Console access. Persistent S3 credentials are generated automatically.",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -73,6 +123,19 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
+			},
+			"generate_random_password": schema.BoolAttribute{
+				MarkdownDescription: "Generate a random password for Console access (optional, default false)",
+				Optional:            true,
+			},
+			"password_length": schema.Int64Attribute{
+				MarkdownDescription: "Length of generated password (default 16, only used if generate_random_password is true)",
+				Optional:            true,
+			},
+			"password": schema.StringAttribute{
+				MarkdownDescription: "Generated Console password (only available if generate_random_password is true)",
+				Computed:            true,
+				Sensitive:           true,
 			},
 			"created_at": schema.StringAttribute{
 				MarkdownDescription: "Account creation timestamp",
@@ -129,11 +192,33 @@ func (r *ConsoleAccountResource) Create(ctx context.Context, req resource.Create
 		"account_name": data.AccountName.ValueString(),
 	})
 
-	// Create account without password
+	// Build account creation request
 	createReq := ConsoleAccountCreateRequest{
 		AccountName: data.AccountName.ValueString(),
 		Email:       data.Email.ValueString(),
 		Quota:       data.Quota.ValueInt64(),
+	}
+
+	// Generate random password if requested
+	if !data.GenerateRandomPassword.IsNull() && data.GenerateRandomPassword.ValueBool() {
+		passwordLength := defaultPasswordLength
+		if !data.PasswordLength.IsNull() && data.PasswordLength.ValueInt64() > 0 {
+			passwordLength = int(data.PasswordLength.ValueInt64())
+		}
+
+		password, err := generateRandomPassword(passwordLength)
+		if err != nil {
+			resp.Diagnostics.AddError("Password Generation Error", fmt.Sprintf("Unable to generate random password: %s", err))
+			return
+		}
+
+		createReq.Password = password
+		data.Password = types.StringValue(password)
+
+		tflog.Debug(ctx, "Generated random password for Console account", map[string]interface{}{
+			"account_name":    data.AccountName.ValueString(),
+			"password_length": passwordLength,
+		})
 	}
 
 	account, err := r.client.CreateConsoleAccount(ctx, createReq)

@@ -263,12 +263,12 @@ output "console_secret_key" {
 
 | Feature | `scality_account` (IAM) | `scality_console_account` (Console) |
 |---------|-------------------------|-------------------------------------|
-| **Authentication** | AWS Signature V4 | JWT Token |
-| **Account Creation** | Standard | Without password (security best practice) |
-| **Credentials** | S3 access keys | Persistent S3 access keys |
-| **Token Caching** | N/A | 23.5 hours |
-| **Deletion** | Single step | Two-step (account + user) |
-| **Use Case** | IAM-style management | Console UI integration |
+| Authentication | AWS Signature V4 | JWT Token |
+| Account Creation | Standard | Without password (security best practice) |
+| Credentials | S3 access keys | Persistent S3 access keys |
+| Token Caching | N/A | 23.5 hours |
+| Deletion | Single step | Two-step (account + user) |
+| Use Case | IAM-style management | Console UI integration |
 
 ## Common Tasks
 
