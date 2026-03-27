@@ -187,13 +187,20 @@ type ConsoleAccountCreateRequest struct {
 
 // ConsoleAccountCreateResponse represents the Console API account creation response
 type ConsoleAccountCreateResponse struct {
-	Success bool `json:"success"`
-	Data    struct {
-		AccountName string `json:"accountName"`
-		Email       string `json:"email"`
-		Quota       int64  `json:"quota"`
-		CreatedAt   string `json:"createdAt"`
-	} `json:"data"`
+	Account struct {
+		Name        string `json:"name"`
+		Email       string `json:"emailAddress"`
+		Quota       int64  `json:"quotaMax"`
+		CreateDate  string `json:"createDate"`
+		ID          string `json:"id"`
+		ARN         string `json:"arn"`
+		CanonicalID string `json:"canonicalId"`
+	} `json:"account"`
+	Credentials *struct {
+		ID     string `json:"id"`
+		Value  string `json:"value"`
+		Status string `json:"status"`
+	} `json:"credentials,omitempty"`
 }
 
 // CreateConsoleAccount creates a new account via Console API (without password)
@@ -251,12 +258,11 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAcc
 
 // ConsoleAccessKeyResponse represents Console API access key generation response
 type ConsoleAccessKeyResponse struct {
-	Success bool `json:"success"`
-	Data    struct {
-		AccessKey string `json:"accessKey"`
-		SecretKey string `json:"secretKey"`
-		Status    string `json:"status"`
-	} `json:"data"`
+	Key struct {
+		ID     string `json:"id"`
+		Value  string `json:"value"`
+		Status string `json:"status"`
+	} `json:"key"`
 }
 
 // GenerateConsoleAccessKey generates persistent S3 access keys for an account
@@ -302,7 +308,7 @@ func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountNam
 	return &result, nil
 }
 
-// GetConsoleAccount retrieves Console account details
+// GetConsoleAccount retrieves Console account details by listing accounts and filtering
 func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName string) (map[string]interface{}, error) {
 	if c.token == "" {
 		if err := c.Authenticate(ctx); err != nil {
@@ -310,7 +316,8 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 		}
 	}
 
-	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, accountName)
+	// Use list endpoint since there's no GET single account endpoint
+	accountURL := fmt.Sprintf("%s%s/100/000000000000", c.Endpoint, consoleAccountPath)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", accountURL, nil)
 	if err != nil {
@@ -333,20 +340,25 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	if resp.StatusCode == 404 {
-		return nil, nil // Account doesn't exist
-	}
-
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
+	var listResult struct {
+		Accounts []map[string]interface{} `json:"accounts"`
+	}
+	if err := json.Unmarshal(body, &listResult); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result, nil
+	// Find the account by name
+	for _, account := range listResult.Accounts {
+		if name, ok := account["name"].(string); ok && name == accountName {
+			return account, nil
+		}
+	}
+
+	return nil, nil // Account doesn't exist
 }
 
 // DeleteConsoleAccount deletes a Console account (two-step process)

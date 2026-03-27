@@ -158,6 +158,7 @@ func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resou
 	return []func() resource.Resource{
 		NewAccountResource,
 		NewConsoleAccountResource,
+		NewAccountAccessKeyResource,
 	}
 }
 

@@ -64,7 +64,9 @@ func (c *ScalityClient) signRequest(method, requestURL, payload string) (map[str
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
 	}
 
-	host := parsedURL.Hostname()
+	// Use Host (includes port) to match Python implementation
+	// AWS Sig V4 requires port in host header for non-standard ports
+	host := parsedURL.Host
 	canonicalQuerystring := ""
 
 	// Create timestamp
@@ -265,10 +267,24 @@ func (c *ScalityClient) GenerateAccountAccessKey(ctx context.Context, accountNam
 	return &result, nil
 }
 
+// GetAccountResponse represents the GetAccount API response (no wrappers)
+type GetAccountResponse struct {
+	ARN              string                 `json:"arn"`
+	CanonicalID      string                 `json:"canonicalId"`
+	ID               string                 `json:"id"`
+	EmailAddress     string                 `json:"emailAddress"`
+	Name             string                 `json:"name"`
+	CreateDate       string                 `json:"createDate"`
+	QuotaMax         int64                  `json:"quotaMax"`
+	AliasList        []string               `json:"aliasList"`
+	OIDCPList        []string               `json:"oidcpList"`
+	CustomAttributes map[string]interface{} `json:"customAttributes"`
+}
+
 // GetAccount retrieves account details (for Read/refresh)
-func (c *ScalityClient) GetAccount(ctx context.Context, accountName string) (*AccountData, error) {
+func (c *ScalityClient) GetAccount(ctx context.Context, accountName string) (*GetAccountResponse, error) {
 	params := url.Values{}
-	params.Set("AccountName", accountName)
+	params.Set("accountName", accountName)
 
 	body, statusCode, err := c.doSignedRequest(ctx, "GetAccount", params)
 	if err != nil {
@@ -283,12 +299,80 @@ func (c *ScalityClient) GetAccount(ctx context.Context, accountName string) (*Ac
 		return nil, fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
 	}
 
-	var result AccountData
+	var result GetAccountResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	return &result, nil
+}
+
+// UpdateAccountQuota updates the quota for a Scality account
+func (c *ScalityClient) UpdateAccountQuota(ctx context.Context, accountName string, quotaMax int64) error {
+	params := url.Values{}
+	params.Set("AccountName", accountName)
+	params.Set("quotaMax", fmt.Sprintf("%d", quotaMax))
+
+	body, statusCode, err := c.doSignedRequest(ctx, "UpdateAccountQuota", params)
+	if err != nil {
+		return err
+	}
+
+	if statusCode != 200 && statusCode != 201 {
+		return fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
+	}
+
+	return nil
+}
+
+// UpdateAccountAttributes updates the custom attributes for a Scality account
+func (c *ScalityClient) UpdateAccountAttributes(ctx context.Context, accountName string, attributes map[string]interface{}) error {
+	params := url.Values{}
+	params.Set("name", accountName)
+
+	// Marshal attributes to JSON
+	if len(attributes) > 0 {
+		attrsJSON, err := json.Marshal(attributes)
+		if err != nil {
+			return fmt.Errorf("failed to marshal attributes: %w", err)
+		}
+		params.Set("customAttributes", string(attrsJSON))
+	} else {
+		// Empty object to clear all attributes
+		params.Set("customAttributes", "{}")
+	}
+
+	body, statusCode, err := c.doSignedRequest(ctx, "UpdateAccountAttributes", params)
+	if err != nil {
+		return err
+	}
+
+	if statusCode != 200 {
+		return fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
+	}
+
+	return nil
+}
+
+// DeleteAccessKey deletes an access key for an account
+func (c *ScalityClient) DeleteAccessKey(ctx context.Context, accessKeyID string) error {
+	params := url.Values{}
+	params.Set("AccessKeyId", accessKeyID)
+
+	body, statusCode, err := c.doSignedRequest(ctx, "DeleteAccessKey", params)
+	if err != nil {
+		return err
+	}
+
+	if statusCode == 404 {
+		return nil // Key already deleted (idempotent)
+	}
+
+	if statusCode != 200 {
+		return fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
+	}
+
+	return nil
 }
 
 // DeleteAccount deletes a Scality account

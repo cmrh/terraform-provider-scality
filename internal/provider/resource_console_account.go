@@ -239,14 +239,14 @@ func (r *ConsoleAccountResource) Create(ctx context.Context, req resource.Create
 	}
 
 	// Update model with response data
-	data.ID = types.StringValue(account.Data.AccountName)
-	data.CreatedAt = types.StringValue(account.Data.CreatedAt)
-	data.AccessKey = types.StringValue(accessKey.Data.AccessKey)
-	data.SecretKey = types.StringValue(accessKey.Data.SecretKey)
+	data.ID = types.StringValue(account.Account.Name)
+	data.CreatedAt = types.StringValue(account.Account.CreateDate)
+	data.AccessKey = types.StringValue(accessKey.Key.ID)
+	data.SecretKey = types.StringValue(accessKey.Key.Value)
 
 	// Set default quota if not specified
 	if data.Quota.IsNull() || data.Quota.IsUnknown() {
-		data.Quota = types.Int64Value(account.Data.Quota)
+		data.Quota = types.Int64Value(account.Account.Quota)
 	}
 
 	tflog.Trace(ctx, "Created Console account resource")

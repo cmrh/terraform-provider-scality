@@ -34,6 +34,7 @@ type AccountResourceModel struct {
 	EmailAddress      types.String `tfsdk:"email_address"`
 	QuotaMax          types.Int64  `tfsdk:"quota_max"`
 	ExternalAccountID types.String `tfsdk:"external_account_id"`
+	CustomAttributes  types.Map    `tfsdk:"custom_attributes"`
 	ARN               types.String `tfsdk:"arn"`
 	CanonicalID       types.String `tfsdk:"canonical_id"`
 	CreateDate        types.String `tfsdk:"create_date"`
@@ -79,6 +80,12 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"external_account_id": schema.StringAttribute{
 				MarkdownDescription: "External account ID for integration with other systems",
 				Optional:            true,
+			},
+			"custom_attributes": schema.MapAttribute{
+				MarkdownDescription: "Custom key-value attributes for the account (max 10 attributes)",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Computed:            true,
 			},
 			"arn": schema.StringAttribute{
 				MarkdownDescription: "Amazon Resource Name (ARN) of the account",
@@ -181,6 +188,35 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 		data.QuotaMax = types.Int64Value(account.Account.Data.QuotaMax)
 	}
 
+	// Set custom attributes if specified
+	if !data.CustomAttributes.IsNull() && !data.CustomAttributes.IsUnknown() {
+		attrs := make(map[string]string)
+		diags := data.CustomAttributes.ElementsAs(ctx, &attrs, false)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+
+		if len(attrs) > 0 {
+			tflog.Debug(ctx, "Setting custom attributes for account", map[string]interface{}{
+				"name":       data.Name.ValueString(),
+				"attributes": attrs,
+			})
+
+			// Convert to map[string]interface{} for JSON marshaling
+			attrsInterface := make(map[string]interface{})
+			for k, v := range attrs {
+				attrsInterface[k] = v
+			}
+
+			err = r.client.UpdateAccountAttributes(ctx, data.Name.ValueString(), attrsInterface)
+			if err != nil {
+				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set custom attributes: %s", err))
+				return
+			}
+		}
+	}
+
 	tflog.Trace(ctx, "Created account resource")
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -212,12 +248,24 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Update state with refreshed data
-	data.ID = types.StringValue(account.Data.ID)
-	data.ARN = types.StringValue(account.Data.ARN)
-	data.CanonicalID = types.StringValue(account.Data.CanonicalID)
-	data.CreateDate = types.StringValue(account.Data.CreateDate)
-	data.QuotaMax = types.Int64Value(account.Data.QuotaMax)
-	data.EmailAddress = types.StringValue(account.Data.EmailAddress)
+	data.ID = types.StringValue(account.ID)
+	data.ARN = types.StringValue(account.ARN)
+	data.CanonicalID = types.StringValue(account.CanonicalID)
+	data.CreateDate = types.StringValue(account.CreateDate)
+	data.QuotaMax = types.Int64Value(account.QuotaMax)
+	data.EmailAddress = types.StringValue(account.EmailAddress)
+
+	// Update custom attributes
+	if account.CustomAttributes != nil && len(account.CustomAttributes) > 0 {
+		attrs, diags := types.MapValueFrom(ctx, types.StringType, account.CustomAttributes)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		data.CustomAttributes = attrs
+	} else {
+		data.CustomAttributes = types.MapNull(types.StringType)
+	}
 
 	// Keep access key and secret key from state (they can't be retrieved)
 
@@ -225,27 +273,81 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data AccountResourceModel
+	var plan, state AccountResourceModel
 
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	tflog.Debug(ctx, "Updating Scality account", map[string]interface{}{
-		"name": data.Name.ValueString(),
+		"name": plan.Name.ValueString(),
 	})
 
-	// Note: The Scality API may not support updates.
-	// For now, we'll just update the state with the planned values.
-	// In a production provider, you would implement UpdateAccount API calls here.
+	// Update quota if changed
+	if !plan.QuotaMax.Equal(state.QuotaMax) {
+		tflog.Info(ctx, "Updating account quota", map[string]interface{}{
+			"name":      plan.Name.ValueString(),
+			"old_quota": state.QuotaMax.ValueInt64(),
+			"new_quota": plan.QuotaMax.ValueInt64(),
+		})
 
-	resp.Diagnostics.AddWarning(
-		"Update Not Fully Implemented",
-		"Account updates may require replacement. Check the Scality API documentation for update capabilities.",
-	)
+		err := r.client.UpdateAccountQuota(ctx, plan.Name.ValueString(), plan.QuotaMax.ValueInt64())
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update account quota: %s", err))
+			return
+		}
+	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// Update custom attributes if changed
+	if !plan.CustomAttributes.Equal(state.CustomAttributes) {
+		attrs := make(map[string]string)
+		attrsInterface := make(map[string]interface{})
+
+		if !plan.CustomAttributes.IsNull() && !plan.CustomAttributes.IsUnknown() {
+			diags := plan.CustomAttributes.ElementsAs(ctx, &attrs, false)
+			if diags.HasError() {
+				resp.Diagnostics.Append(diags...)
+				return
+			}
+
+			// Convert to map[string]interface{} for JSON marshaling
+			for k, v := range attrs {
+				attrsInterface[k] = v
+			}
+		}
+
+		tflog.Info(ctx, "Updating account custom attributes", map[string]interface{}{
+			"name":       plan.Name.ValueString(),
+			"attributes": attrsInterface,
+		})
+
+		err := r.client.UpdateAccountAttributes(ctx, plan.Name.ValueString(), attrsInterface)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update custom attributes: %s", err))
+			return
+		}
+	}
+
+	// Note: email_address changes are not supported by the API
+	if !plan.EmailAddress.Equal(state.EmailAddress) {
+		resp.Diagnostics.AddWarning(
+			"Email Address Update Not Supported",
+			"The Scality API does not support updating email addresses. The email address will remain unchanged.",
+		)
+		plan.EmailAddress = state.EmailAddress
+	}
+
+	// Preserve computed values from state
+	plan.ID = state.ID
+	plan.ARN = state.ARN
+	plan.CanonicalID = state.CanonicalID
+	plan.CreateDate = state.CreateDate
+	plan.AccessKey = state.AccessKey
+	plan.SecretKey = state.SecretKey
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *AccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

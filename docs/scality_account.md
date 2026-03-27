@@ -87,6 +87,62 @@ resource "scality_account" "integrated" {
 }
 ```
 
+### With Custom Attributes
+
+```hcl
+resource "scality_account" "tagged" {
+  name          = "production-app"
+  email_address = "prod@example.com"
+  quota_max     = 100000000000  # 100GB
+
+  custom_attributes = {
+    environment = "production"
+    team        = "platform"
+    project     = "main-api"
+    cost_center = "engineering"
+  }
+}
+
+output "account_tags" {
+  value = scality_account.tagged.custom_attributes
+}
+```
+
+### Access Key Rotation
+
+For key rotation scenarios, use the `scality_account_access_key` resource to generate additional keys:
+
+```hcl
+resource "scality_account" "app" {
+  name          = "my-app"
+  email_address = "myapp@example.com"
+  quota_max     = 50000000000
+}
+
+# Generate additional access key for rotation
+resource "scality_account_access_key" "rotation_key" {
+  account_name = scality_account.app.name
+}
+
+output "primary_credentials" {
+  value = {
+    access_key = scality_account.app.access_key
+    secret_key = scality_account.app.secret_key
+  }
+  sensitive = true
+}
+
+output "rotation_credentials" {
+  value = {
+    access_key = scality_account_access_key.rotation_key.access_key
+    secret_key = scality_account_access_key.rotation_key.secret_key
+  }
+  sensitive = true
+}
+```
+
+See [scality_account_access_key](scality_account_access_key.md) for more details on key rotation.
+
 ## Argument Reference
 
 ### Required Arguments
@@ -96,8 +152,9 @@ resource "scality_account" "integrated" {
 
 ### Optional Arguments
 
-- `quota_max` (Number, Optional, Default: 0) - Maximum amount of bytes storable by the account. `0` means unlimited.
+- `quota_max` (Number, Optional, Default: 0) - Maximum amount of bytes storable by the account. `0` means unlimited. Can be updated in-place.
 - `external_account_id` (String, Optional) - External account ID for integration with other systems.
+- `custom_attributes` (Map of String, Optional, Computed) - Custom key-value attributes for the account. Maximum 10 attributes. Useful for tagging, metadata, or integration with external systems. Can be updated in-place.
 
 ## Attribute Reference
 
@@ -138,6 +195,8 @@ Each request is individually signed with the admin credentials configured in the
 - **CreateAccount**: `POST /` with `Action=CreateAccount&Version=2010-05-08`
 - **GenerateAccountAccessKey**: `POST /` with `Action=GenerateAccountAccessKey&Version=2010-05-08`
 - **GetAccount**: `POST /` with `Action=GetAccount&Version=2010-05-08` (for state refresh)
+- **UpdateAccountQuota**: `POST /` with `Action=UpdateAccountQuota&Version=2010-05-08`
+- **UpdateAccountAttributes**: `POST /` with `Action=UpdateAccountAttributes&Version=2010-05-08`
 - **DeleteAccount**: `POST /` with `Action=DeleteAccount&Version=2010-05-08`
 
 All requests use form-encoded parameters with `Content-Type: application/x-www-form-urlencoded`.
@@ -338,16 +397,32 @@ On `terraform apply`:
 
 ### Updates
 
-Changing the `email_address` or `quota_max` attributes triggers an update:
+The following attributes can be updated in-place without recreating the account:
+
+**Quota Updates**:
 ```hcl
 resource "scality_account" "example" {
   name          = "myapp"
-  email_address = "newemail@example.com"  # Updated
-  quota_max     = 20000000000              # Updated
+  email_address = "myapp@example.com"
+  quota_max     = 20000000000  # Updated from 10GB to 20GB
 }
 ```
 
-Note: IAM API update support may be limited. Check API documentation for update capabilities. Some changes may require replacement.
+**Custom Attributes**:
+```hcl
+resource "scality_account" "example" {
+  name          = "myapp"
+  email_address = "myapp@example.com"
+  quota_max     = 10000000000
+
+  custom_attributes = {
+    environment = "production"  # Updated from "staging"
+    team        = "platform"    # Added new attribute
+  }
+}
+```
+
+**Email Address**: The Scality API does not support updating email addresses. Attempting to change `email_address` will result in a warning and the value will remain unchanged. To change the email, you must destroy and recreate the account.
 
 Changing `name` forces replacement (new account created, old account destroyed):
 ```hcl
@@ -453,6 +528,7 @@ cat terraform-debug.log | grep -i "scality"
 
 ## See Also
 
+- [scality_account_access_key](scality_account_access_key.md) - Manage additional access keys for key rotation
 - [scality_console_account](scality_console_account.md) - Console API resource for comparison
 - [Provider Configuration](provider.md) - Detailed provider configuration
 - [Quick Start Guide](QUICKSTART.md) - Get started quickly
