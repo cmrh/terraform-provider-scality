@@ -188,12 +188,12 @@ type ConsoleAccountCreateRequest struct {
 // ConsoleAccountCreateResponse represents the Console API account creation response
 type ConsoleAccountCreateResponse struct {
 	Account struct {
-		Name       string `json:"name"`
-		Email      string `json:"emailAddress"`
-		Quota      int64  `json:"quotaMax"`
-		CreateDate string `json:"createDate"`
-		ID         string `json:"id"`
-		ARN        string `json:"arn"`
+		Name        string `json:"name"`
+		Email       string `json:"emailAddress"`
+		Quota       int64  `json:"quotaMax"`
+		CreateDate  string `json:"createDate"`
+		ID          string `json:"id"`
+		ARN         string `json:"arn"`
 		CanonicalID string `json:"canonicalId"`
 	} `json:"account"`
 	Credentials *struct {
