@@ -160,6 +160,9 @@ export SCALITY_SECRET_KEY="admin-secret-key"
 export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
 export SCALITY_CONSOLE_USERNAME="admin"
 export SCALITY_CONSOLE_PASSWORD="mySuperPassword"
+
+# TLS Configuration (optional)
+export SCALITY_INSECURE_SKIP_VERIFY="true"  # For self-signed certificates
 ```
 
 > **Security Best Practice**: Always use environment variables or a secure secret management system. Never hardcode credentials in `.tf` files.
@@ -185,6 +188,12 @@ Configure one or both authentication methods depending on which resources you ne
 | `console_endpoint` | `SCALITY_CONSOLE_ENDPOINT` | Console API endpoint (e.g., `http://scality.example.com:8080`) |
 | `console_username` | `SCALITY_CONSOLE_USERNAME` | Admin username from Ansible deployment (sensitive) |
 | `console_password` | `SCALITY_CONSOLE_PASSWORD` | Admin password from Ansible deployment (sensitive) |
+
+### TLS Configuration (Optional)
+
+| Argument | Environment Variable (Recommended) | Description |
+|----------|-----------------------------------|-------------|
+| `insecure_skip_verify` | `SCALITY_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification (useful for self-signed certificates). Set to `true` or `1` to enable. Default: `false` |
 
 > **Console Setup**: Superadmin credentials are created during deployment:
 > ```bash
