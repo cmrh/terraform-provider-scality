@@ -21,12 +21,13 @@ type ScalityProvider struct {
 
 // ScalityProviderModel describes the provider data model
 type ScalityProviderModel struct {
-	Endpoint        types.String `tfsdk:"endpoint"`
-	AccessKey       types.String `tfsdk:"access_key"`
-	SecretKey       types.String `tfsdk:"secret_key"`
-	ConsoleEndpoint types.String `tfsdk:"console_endpoint"`
-	ConsoleUsername types.String `tfsdk:"console_username"`
-	ConsolePassword types.String `tfsdk:"console_password"`
+	Endpoint           types.String `tfsdk:"endpoint"`
+	AccessKey          types.String `tfsdk:"access_key"`
+	SecretKey          types.String `tfsdk:"secret_key"`
+	ConsoleEndpoint    types.String `tfsdk:"console_endpoint"`
+	ConsoleUsername    types.String `tfsdk:"console_username"`
+	ConsolePassword    types.String `tfsdk:"console_password"`
+	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
 }
 
 func (p *ScalityProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -65,6 +66,10 @@ func (p *ScalityProvider) Schema(ctx context.Context, req provider.SchemaRequest
 				Description: "Console API password for JWT authentication. Can also be set via SCALITY_CONSOLE_PASSWORD environment variable.",
 				Optional:    true,
 				Sensitive:   true,
+			},
+			"insecure_skip_verify": schema.BoolAttribute{
+				Description: "Skip TLS certificate verification (useful for self-signed certificates). Can also be set via SCALITY_INSECURE_SKIP_VERIFY environment variable.",
+				Optional:    true,
 			},
 		},
 	}
@@ -111,6 +116,14 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		consolePassword = os.Getenv("SCALITY_CONSOLE_PASSWORD")
 	}
 
+	// TLS configuration - default to false (secure by default)
+	insecureSkipVerify := false
+	if !config.InsecureSkipVerify.IsNull() {
+		insecureSkipVerify = config.InsecureSkipVerify.ValueBool()
+	} else if envVal := os.Getenv("SCALITY_INSECURE_SKIP_VERIFY"); envVal != "" {
+		insecureSkipVerify = envVal == "true" || envVal == "1"
+	}
+
 	// Validate that at least one set of credentials is configured
 	hasIAMConfig := endpoint != "" && accessKey != "" && secretKey != ""
 	hasConsoleConfig := consoleEndpoint != "" && consoleUsername != "" && consolePassword != ""
@@ -130,11 +143,11 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 	var consoleClient *ConsoleClient
 
 	if hasIAMConfig {
-		iamClient = NewScalityClient(endpoint, accessKey, secretKey)
+		iamClient = NewScalityClient(endpoint, accessKey, secretKey, insecureSkipVerify)
 	}
 
 	if hasConsoleConfig {
-		consoleClient = NewConsoleClient(consoleEndpoint, consoleUsername, consolePassword)
+		consoleClient = NewConsoleClient(consoleEndpoint, consoleUsername, consolePassword, insecureSkipVerify)
 	}
 
 	// Store both clients in a wrapper struct

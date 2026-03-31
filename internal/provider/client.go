@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -46,12 +47,24 @@ type ScalityClient struct {
 }
 
 // NewScalityClient creates a new Scality API client
-func NewScalityClient(endpoint, accessKey, secretKey string) *ScalityClient {
+func NewScalityClient(endpoint, accessKey, secretKey string, insecureSkipVerify bool) *ScalityClient {
+	httpClient := &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	if insecureSkipVerify {
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+	}
+
 	return &ScalityClient{
 		Endpoint:   endpoint,
 		AccessKey:  accessKey,
 		SecretKey:  secretKey,
-		HTTPClient: &http.Client{Timeout: defaultHTTPTimeout},
+		HTTPClient: httpClient,
 	}
 }
 

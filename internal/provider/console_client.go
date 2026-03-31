@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -35,12 +36,24 @@ type ConsoleClient struct {
 }
 
 // NewConsoleClient creates a new Scality Console API client
-func NewConsoleClient(endpoint, username, password string) *ConsoleClient {
+func NewConsoleClient(endpoint, username, password string, insecureSkipVerify bool) *ConsoleClient {
+	httpClient := &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	if insecureSkipVerify {
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+	}
+
 	return &ConsoleClient{
 		Endpoint:   endpoint,
 		Username:   username,
 		Password:   password,
-		HTTPClient: &http.Client{Timeout: defaultHTTPTimeout},
+		HTTPClient: httpClient,
 	}
 }
 
