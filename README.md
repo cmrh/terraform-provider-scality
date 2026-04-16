@@ -1,396 +1,128 @@
 # OpenTofu/Terraform Provider for Scality
 
-Manage Scality on-premises S3 storage accounts with OpenTofu/Terraform. Supports both IAM API and Console API authentication methods.
+Manage Scality S3C / RING storage infrastructure with OpenTofu or Terraform. Supports account management, IAM users/groups/policies, and S3 bucket configuration.
 
-> **Note**: This provider is fully compatible with both [OpenTofu](https://opentofu.org/) (recommended) and Terraform.
+## Resources
 
-## Quick Links
+### Accounts
 
-- **[scality_account](docs/scality_account.md)** - IAM API resource for account management
-- **[scality_console_account](docs/scality_console_account.md)** - Console API resource for account management
-- **[scality_account_access_key](docs/scality_account_access_key.md)** - Manage additional S3 access keys (key rotation)
-- **[Quick Start Guide](docs/QUICKSTART.md)** - Step-by-step setup instructions
+| Resource | Description |
+|----------|-------------|
+| [scality_account](docs/scality_account.md) | Account via IAM API (SigV4 auth) |
+| [scality_console_account](docs/scality_console_account.md) | Account via Console API (JWT auth) |
+| [scality_account_access_key](docs/scality_account_access_key.md) | Additional root access key for an account |
 
-## Features
+### S3 Buckets
 
-**Three Resource Types:**
-- **scality_account** - IAM API with Signature V4 authentication
-- **scality_console_account** - Console API with JWT authentication
-- **scality_account_access_key** - Manage additional S3 access keys for key rotation
+| Resource | Description |
+|----------|-------------|
+| [scality_bucket](docs/scality_bucket.md) | Bucket with versioning and tags |
+| [scality_bucket_policy](docs/scality_bucket_policy.md) | JSON bucket policy |
+| [scality_bucket_encryption](docs/scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
+| [scality_bucket_acl](docs/scality_bucket_acl.md) | Canned ACL |
+| [scality_bucket_lifecycle](docs/scality_bucket_lifecycle.md) | Object lifecycle rules |
+| [scality_bucket_object_lock](docs/scality_bucket_object_lock.md) | Object lock retention |
+| [scality_bucket_replication](docs/scality_bucket_replication.md) | Cross-bucket replication |
 
-**Core Capabilities:**
-- Automatic S3 credential generation
-- Account quota management
-- State management and drift detection
-- Import existing accounts
-- Secure credential handling
+### IAM
 
-## Requirements
+| Resource | Description |
+|----------|-------------|
+| [scality_user](docs/scality_user.md) | IAM user within an account |
+| [scality_user_access_key](docs/scality_user_access_key.md) | Access key for a user |
+| [scality_user_policy](docs/scality_user_policy.md) | Inline policy attached to a user |
+| [scality_group](docs/scality_group.md) | IAM group |
+| [scality_group_membership](docs/scality_group_membership.md) | Group membership |
 
-- OpenTofu >= 1.6 or Terraform >= 1.0
-- Go >= 1.21 (for building from source)
-- Scality on-premises storage system with admin credentials
+## Quick Start
 
-## Installation
-
-### From Release (Recommended)
-
-Download pre-built binaries from [GitHub Releases](https://github.com/scality/terraform-provider-scality/releases):
-
-```bash
-# Download and extract (replace version and platform as needed)
-VERSION=v0.2.0
-PLATFORM=linux_amd64
-wget https://github.com/scality/terraform-provider-scality/releases/download/${VERSION}/terraform-provider-scality_${VERSION}_${PLATFORM}.tar.gz
-tar -xzf terraform-provider-scality_${VERSION}_${PLATFORM}.tar.gz
-
-# Install to local plugin directory
-mkdir -p ~/.terraform.d/plugins/registry.terraform.io/scality/scality/${VERSION#v}/${PLATFORM}/
-mv terraform-provider-scality_${VERSION}_${PLATFORM} ~/.terraform.d/plugins/registry.terraform.io/scality/scality/${VERSION#v}/${PLATFORM}/terraform-provider-scality_${VERSION}
-chmod +x ~/.terraform.d/plugins/registry.terraform.io/scality/scality/${VERSION#v}/${PLATFORM}/terraform-provider-scality_${VERSION}
-```
-
-### Build from Source
+Set credentials via environment variables:
 
 ```bash
-git clone https://github.com/scality/terraform-provider-scality
-cd terraform-provider-scality
-make build
-make install
-```
+# For IAM and S3 resources
+export SCALITY_ENDPOINT="http://scality.example.com:8080"
+export SCALITY_ACCESS_KEY="admin-access-key"
+export SCALITY_SECRET_KEY="admin-secret-key"
 
-### Development Setup
+# For console account resources
+export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
+export SCALITY_CONSOLE_USERNAME="admin"
+export SCALITY_CONSOLE_PASSWORD="password"
 
-For local development with automatic rebuilds:
-
-```bash
-# Build and install
-make build
-make install
-
-# Optional: Create dev override in ~/.tofurc or ~/.terraformrc
-provider_installation {
-  dev_overrides {
-    "scality/scality" = "/home/YOUR_USER/.terraform.d/plugins/registry.terraform.io/scality/scality/0.1.0/linux_amd64/"
-  }
-  direct {}
-}
-```
-
-## Usage
-
-### Basic Example - IAM API
-
-**Recommended: Use environment variables**:
-
-```bash
-export SCALITY_ENDPOINT="http://scality.example.com"
-export SCALITY_ACCESS_KEY="your-admin-access-key"
-export SCALITY_SECRET_KEY="your-admin-secret-key"
+# Optional
+export SCALITY_INSECURE_SKIP_VERIFY="true"
 ```
 
 ```hcl
 terraform {
   required_providers {
-    scality = {
-      source  = "scality/scality"
-      version = "~> 0.2"
-    }
+    scality = { source = "scality/scality" }
   }
 }
 
-provider "scality" {
-  # Credentials loaded from environment variables
-}
+provider "scality" {}
 
-resource "scality_account" "app" {
-  name          = "myapp"
-  email_address = "myapp@example.com"
-  quota_max     = 1073741824  # 1GB in bytes
-}
-
-output "s3_credentials" {
-  value = {
-    access_key = scality_account.app.access_key
-    secret_key = scality_account.app.secret_key
-  }
-  sensitive = true
-}
-```
-
-### Console API Example
-
-> **Note**: Console superadmin credentials are created during Scality deployment via Ansible:
-> ```bash
-> ansible-playbook -i env/s3config/inventory \
->   tooling-playbooks/create-superadmin-console-user.yml \
->   -e ui_username=admin -e ui_password=mySuperPassword
-> ```
-
-**Recommended: Use environment variables** (never commit credentials to git):
-
-```bash
-# Set credentials from Ansible deployment
-export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
-export SCALITY_CONSOLE_USERNAME="admin"
-export SCALITY_CONSOLE_PASSWORD="mySuperPassword"
-```
-
-```hcl
-provider "scality" {
-  # Credentials loaded from environment variables
-}
-
+# Create an account with a stable key pair for Terraform
 resource "scality_console_account" "app" {
-  account_name             = "myapp"
-  email                    = "myapp@example.com"
-  quota                    = 1073741824  # 1GB in bytes
-  generate_random_password = true        # Optional: for Console UI access
-  password_length          = 20          # Optional: default 16, minimum 16
+  account_name             = "my-app"
+  email                    = "app@example.com"
+  generate_random_password = true
+}
+
+resource "scality_account_access_key" "stable" {
+  account_access_key = scality_console_account.app.access_key
+  account_secret_key = scality_console_account.app.secret_key
+}
+
+locals {
+  ak = scality_account_access_key.stable.access_key
+  sk = scality_account_access_key.stable.secret_key
+}
+
+# Create a bucket and a user
+resource "scality_bucket" "data" {
+  account_access_key = local.ak
+  account_secret_key = local.sk
+  bucket             = "app-data"
+  versioning         = true
+}
+
+resource "scality_user" "operator" {
+  account_access_key = local.ak
+  account_secret_key = local.sk
+  username           = "app-operator"
+}
+
+resource "scality_user_access_key" "operator" {
+  account_access_key = local.ak
+  account_secret_key = local.sk
+  username           = scality_user.operator.username
 }
 ```
 
-### Environment Variables (Recommended)
+## Building from Source
 
 ```bash
-# IAM API
-export SCALITY_ENDPOINT="http://scality.example.com"
-export SCALITY_ACCESS_KEY="admin-access-key"
-export SCALITY_SECRET_KEY="admin-secret-key"
-
-# Console API
-export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
-export SCALITY_CONSOLE_USERNAME="admin"
-export SCALITY_CONSOLE_PASSWORD="mySuperPassword"
-
-# TLS Configuration (optional)
-export SCALITY_INSECURE_SKIP_VERIFY="true"  # For self-signed certificates
+git clone https://github.com/scality/terraform-provider-scality
+cd terraform-provider-scality
+go build -o terraform-provider-scality .
 ```
 
-> **Security Best Practice**: Always use environment variables or a secure secret management system. Never hardcode credentials in `.tf` files.
-
-## Provider Configuration
-
-> **Recommended**: Use environment variables for all credentials. See examples above.
-
-Configure one or both authentication methods depending on which resources you need.
-
-### IAM API (scality_account)
-
-| Argument | Environment Variable (Recommended) | Description |
-|----------|-----------------------------------|-------------|
-| `endpoint` | `SCALITY_ENDPOINT` | IAM API endpoint (e.g., `http://scality.example.com`) |
-| `access_key` | `SCALITY_ACCESS_KEY` | Admin access key (sensitive) |
-| `secret_key` | `SCALITY_SECRET_KEY` | Admin secret key (sensitive) |
-
-### Console API (scality_console_account)
-
-| Argument | Environment Variable (Recommended) | Description |
-|----------|-----------------------------------|-------------|
-| `console_endpoint` | `SCALITY_CONSOLE_ENDPOINT` | Console API endpoint (e.g., `http://scality.example.com:8080`) |
-| `console_username` | `SCALITY_CONSOLE_USERNAME` | Admin username from Ansible deployment (sensitive) |
-| `console_password` | `SCALITY_CONSOLE_PASSWORD` | Admin password from Ansible deployment (sensitive) |
-
-### TLS Configuration (Optional)
-
-| Argument | Environment Variable (Recommended) | Description |
-|----------|-----------------------------------|-------------|
-| `insecure_skip_verify` | `SCALITY_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification (useful for self-signed certificates). Set to `true` or `1` to enable. Default: `false` |
-
-> **Console Setup**: Superadmin credentials are created during deployment:
-> ```bash
-> ansible-playbook -i env/s3config/inventory \
->   tooling-playbooks/create-superadmin-console-user.yml \
->   -e ui_username=admin -e ui_password=mySuperPassword
-> ```
-
-## Resources
-
-### scality_account
-
-Manages accounts using the IAM API with Signature V4 authentication.
-
-**Arguments:**
-- `name` (Required) - Account name
-- `email_address` (Required) - Email address
-- `quota_max` (Optional) - Storage quota in bytes (default: unlimited)
-- `external_account_id` (Optional) - External ID for integrations
-
-**Exported Attributes:**
-- `id`, `arn`, `canonical_id`, `create_date`
-- `access_key`, `secret_key` (sensitive, auto-generated)
-
-[Full Documentation →](docs/scality_account.md)
-
-### scality_console_account
-
-Manages accounts using the Console API with JWT authentication.
-
-**Arguments:**
-- `account_name` (Required) - Account name
-- `email` (Required) - Email address
-- `quota` (Optional) - Storage quota in bytes (default: unlimited)
-- `generate_random_password` (Optional) - Generate random Console password (default: false)
-- `password_length` (Optional) - Password length, minimum 16 (default: 16)
-
-**Exported Attributes:**
-- `id`, `created_at`
-- `password` (sensitive, computed) - Generated Console password if enabled
-- `access_key`, `secret_key` (sensitive, auto-generated)
-
-**Key Features:**
-- Optional random password generation for Console UI access
-- Persistent S3 credentials (not password-linked)
-- JWT token caching (23.5 hours)
-
-[Full Documentation →](docs/scality_console_account.md)
-
-### scality_account_access_key
-
-Manages additional S3 API access keys for Scality accounts. Useful for key rotation.
-
-**Arguments:**
-- `account_name` (Required) - Name of the parent account
-
-**Exported Attributes:**
-- `id`, `access_key`, `secret_key` (sensitive), `status`, `create_date`
-
-**Import:** `terraform import scality_account_access_key.example account_name/access_key_id`
-
-[Full Documentation →](docs/scality_account_access_key.md)
-
-## Examples
-
-### Multiple Accounts with For-Each
+For development, add a `dev_overrides` block to `~/.tofurc` (or `~/.terraformrc`) so you can skip `tofu init`:
 
 ```hcl
-locals {
-  environments = {
-    dev     = { email = "dev@example.com", quota = 5368709120 }    # 5GB
-    staging = { email = "staging@example.com", quota = 10737418240 } # 10GB
-    prod    = { email = "prod@example.com", quota = 107374182400 }  # 100GB
+provider_installation {
+  dev_overrides {
+    "scality/scality" = "/path/to/binary/directory"
   }
-}
-
-resource "scality_account" "env" {
-  for_each = local.environments
-
-  name          = "${each.key}-storage"
-  email_address = each.value.email
-  quota_max     = each.value.quota
-}
-
-output "credentials" {
-  value = {
-    for k, v in scality_account.env : k => {
-      access_key = v.access_key
-      secret_key = v.secret_key
-    }
-  }
-  sensitive = true
+  direct {}
 }
 ```
 
-### Import Existing Account
+## Documentation
 
-```bash
-# IAM account
-terraform import scality_account.existing account-name
-
-# Console account
-terraform import scality_console_account.existing account-name
-```
-
-## Common Issues
-
-**DeleteConflict (409)**: Account contains resources (buckets, users, policies)
-- **Solution**: Delete all resources in the account first, then retry
-
-**Account Already Exists (409)**: Account name is taken
-- **Solution**: Import the existing account or use a different name
-
-**Import Syntax**:
-```bash
-terraform import scality_account.name account-name
-terraform import scality_console_account.name account-name
-terraform import scality_account_access_key.name account-name/access-key-id
-```
-
-## State Management
-
-**Sensitive Data**: Generated S3 credentials are marked sensitive in state files
-- Use remote state with encryption (S3, Consul, Terraform Cloud)
-- Restrict state file access with proper IAM/permissions
-- Never commit state files to version control
-- **Use environment variables for provider credentials** (never hardcode in `.tf` files)
-
-**Drift Detection**: Automatically detects accounts deleted outside Terraform
-
-## Technical Details
-
-### IAM API Authentication
-- **Method**: Signature Version 4 (compatible with AWS SDKs)
-- **Endpoints**: CreateAccount, GenerateAccountAccessKey, DeleteAccessKey, GetAccount, DeleteAccount
-- **Signing**: AWS4-HMAC-SHA256 with `host`, `x-amz-content-sha256`, `x-amz-date` headers
-
-### Console API Authentication
-- **Method**: JWT tokens (24-hour lifetime)
-- **Token Caching**: Automatic caching for 23.5 hours in `/tmp` (0600 permissions)
-- **Endpoints**: Authenticate, CreateAccount, GenerateAccessKey, GetAccount, DeleteAccount
-- **Deletion**: Two-step process (account + user)
-
-## Limitations
-
-- All account attribute changes force resource replacement (the APIs do not support in-place updates)
-- S3 credentials generated during account creation cannot be retrieved after initial creation
-- Use `scality_account_access_key` for credential rotation without recreating accounts
-
-## Development
-
-```bash
-# Run tests
-make test
-
-# Run acceptance tests (requires Scality instance)
-make testacc
-
-# Format code
-make fmt
-
-# Build locally
-make build
-make install
-```
-
-## Release Process
-
-GitHub Actions automatically builds and releases binaries for all platforms when you push a version tag:
-
-```bash
-git tag -a v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
-```
-
-**Supported Platforms**: Linux (amd64/arm64), macOS (amd64/arm64), Windows (amd64)
-
-**Verify Downloads**:
-```bash
-wget https://github.com/scality/terraform-provider-scality/releases/download/v0.2.0/terraform-provider-scality_v0.2.0_SHA256SUMS
-sha256sum -c terraform-provider-scality_v0.2.0_SHA256SUMS --ignore-missing
-```
-
-## Contributing
-
-Contributions welcome! Please:
-- Add tests for new features
-- Run `make fmt` before committing
-- Ensure `make test` passes
+See [docs/README.md](docs/README.md) for the full resource reference.
 
 ## License
 
-Apache 2.0 - See LICENSE file
-
-## Version History
-
-**v0.2.0** - Console API support, JWT authentication, token caching
-**v0.1.0** - Initial release with IAM API support
+Apache 2.0
