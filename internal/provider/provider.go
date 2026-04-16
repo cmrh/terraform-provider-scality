@@ -23,6 +23,9 @@ import (
 	consoleaccount "github.com/scality/terraform-provider-scality/internal/resources/console_account"
 	"github.com/scality/terraform-provider-scality/internal/resources/group"
 	groupmembership "github.com/scality/terraform-provider-scality/internal/resources/group_membership"
+	iampolicy "github.com/scality/terraform-provider-scality/internal/resources/iam_policy"
+	iamrole "github.com/scality/terraform-provider-scality/internal/resources/iam_role"
+	iamrolepolicyattachment "github.com/scality/terraform-provider-scality/internal/resources/iam_role_policy_attachment"
 	"github.com/scality/terraform-provider-scality/internal/resources/user"
 	useraccesskey "github.com/scality/terraform-provider-scality/internal/resources/user_access_key"
 	userpolicy "github.com/scality/terraform-provider-scality/internal/resources/user_policy"
@@ -188,6 +191,9 @@ func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resou
 		bucketobjectlock.NewBucketObjectLockResource,
 		bucketpolicy.NewBucketPolicyResource,
 		bucketreplication.NewBucketReplicationResource,
+		iampolicy.NewIAMPolicyResource,
+		iamrole.NewIAMRoleResource,
+		iamrolepolicyattachment.NewIAMRolePolicyAttachmentResource,
 		user.NewUserResource,
 		useraccesskey.NewUserAccessKeyResource,
 		userpolicy.NewUserPolicyResource,
