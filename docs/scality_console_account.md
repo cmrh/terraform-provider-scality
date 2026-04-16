@@ -125,13 +125,13 @@ resource "local_file" "credentials" {
 ### Required Arguments
 
 - `account_name` (String, Required, Forces new resource) - Name of the account. Changing this forces a new resource to be created.
-- `email` (String, Required) - Email address for the account. Must be a valid email format.
+- `email` (String, Required, Forces new resource) - Email address for the account. Changing this forces a new resource to be created.
 
 ### Optional Arguments
 
-- `quota` (Number, Optional, Default: 0) - Maximum amount of bytes storable by the account. `0` means unlimited.
-- `generate_random_password` (Boolean, Optional, Default: false) - Generate a random password for Console access.
-- `password_length` (Number, Optional, Default: 16) - Length of generated password. Minimum 16 characters. Only used if `generate_random_password` is true.
+- `quota` (Number, Optional, Default: 0, Forces new resource) - Maximum amount of bytes storable by the account. `0` means unlimited. Changing this forces a new resource to be created.
+- `generate_random_password` (Boolean, Optional, Default: false, Forces new resource) - Generate a random password for Console access. Changing this forces a new resource to be created.
+- `password_length` (Number, Optional, Default: 16, Forces new resource) - Length of generated password. Minimum 16 characters. Only used if `generate_random_password` is true. Changing this forces a new resource to be created.
 
 ## Attribute Reference
 
@@ -359,21 +359,25 @@ On `terraform apply`:
 1. Provider authenticates to Console API (or uses cached token)
 2. Generates random password if requested (cryptographically secure, minimum 16 chars)
 3. Creates account with optional password
-4. Generates persistent S3 access keys
-5. Returns credentials in state (encrypted if using remote state)
+4. Saves account to state immediately (so it can be tracked even if subsequent steps fail)
+5. Generates persistent S3 access keys
+6. Updates state with credentials
+
+If access key generation fails, the account is still tracked in state and can be destroyed or re-applied.
 
 ### Updates
 
-Changing the `email` or `quota` attributes triggers an update:
+All attribute changes force resource replacement (destroy + recreate). The Console API does not support in-place updates. Changing any attribute (`account_name`, `email`, `quota`, `generate_random_password`, `password_length`) will destroy the existing account and create a new one:
+
 ```hcl
 resource "scality_console_account" "example" {
   account_name = "myapp"
-  email        = "newemail@example.com"  # Updated
-  quota        = 20000000000              # Updated
+  email        = "newemail@example.com"  # Changed - will force replacement
+  quota        = 20000000000              # Changed - will force replacement
 }
 ```
 
-**Note**: Console API update support may be limited. Check API documentation for update capabilities. Some changes may fail or require replacement.
+**Warning**: Replacement destroys the existing account and its credentials. Ensure dependent resources are updated accordingly.
 
 ### Deletion
 

@@ -174,13 +174,13 @@ In addition to the arguments, the following attributes are exported:
 
 ## Import
 
-Access keys can be imported using the access key ID:
+Access keys can be imported using a composite ID of `account_name/access_key_id`:
 
 ```bash
-terraform import scality_account_access_key.example <access-key-id>
+terraform import scality_account_access_key.example my-account/AKIAIOSFODNN7EXAMPLE
 ```
 
-**Note**: After import, the `secret_key` attribute will be unknown since it cannot be retrieved from the API. Import is primarily useful for managing the lifecycle of existing keys, but you won't have access to the secret key value.
+**Note**: After import, the `secret_key` attribute will be unknown since it cannot be retrieved from the API. Import is primarily useful for managing the lifecycle (deletion) of existing keys, but you won't have access to the secret key value.
 
 ## Authentication Details
 
@@ -336,7 +336,7 @@ Access keys cannot be updated - they are immutable. To rotate a key:
 2. Update application configuration to use the new key
 3. Delete the old `scality_account_access_key` resource
 
-Attempting to update an access key will result in a warning.
+Attempting to update an access key will result in an error.
 
 ### Secret Key Retrieval
 

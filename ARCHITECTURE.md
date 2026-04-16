@@ -30,8 +30,8 @@ This document explains the architectural decisions, design patterns, and impleme
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Terraform Core                           │
-│           (Handles plan, apply, destroy lifecycle)          │
+│                    Terraform / OpenTofu Core                 │
+│           (Handles plan, apply, destroy lifecycle)           │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          │ Plugin Protocol (gRPC)
@@ -40,29 +40,33 @@ This document explains the architectural decisions, design patterns, and impleme
 ┌─────────────────────────────────────────────────────────────┐
 │              Scality Terraform Provider                     │
 │                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │   Provider   │  │  Resources   │  │ Data Sources │    │
-│  │  (provider.go)│  │              │  │  (future)    │    │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────┘    │
-│         │                  │                               │
-│         ▼                  ▼                               │
-│  ┌──────────────────────────────────────────────┐         │
-│  │         Client Layer (Abstraction)           │         │
-│  │                                              │         │
-│  │  ┌────────────────┐  ┌────────────────────┐│         │
-│  │  │  ScalityClient │  │  ConsoleClient     ││         │
-│  │  │  (IAM API)     │  │  (Console API)     ││         │
-│  │  └────────┬───────┘  └────────┬───────────┘│         │
-│  │           │                    │            │         │
-│  └───────────┼────────────────────┼────────────┘         │
-│              │                    │                       │
-└──────────────┼────────────────────┼───────────────────────┘
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │   Provider   │  │  Resources   │  │ Data Sources │     │
+│  │ (provider.go)│  │   (3 total)  │  │   (future)   │     │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────┘     │
+│         │                  │                                │
+│         ▼                  ▼                                │
+│  ┌──────────────────────────────────────────────┐          │
+│  │          Client Layer (ProviderClients)       │          │
+│  │                                               │          │
+│  │  ┌─────────────────┐  ┌─────────────────┐   │          │
+│  │  │  ScalityClient  │  │  ConsoleClient   │   │          │
+│  │  │  (AWS SigV4)    │  │  (JWT Token)     │   │          │
+│  │  └────────┬────────┘  └────────┬─────────┘   │          │
+│  │           │                    │              │          │
+│  │           │           ┌────────┴─────────┐   │          │
+│  │           │           │  File-Based      │   │          │
+│  │           │           │  Token Cache     │   │          │
+│  │           │           └──────────────────┘   │          │
+│  └───────────┼────────────────────┼──────────────┘          │
+│              │                    │                          │
+└──────────────┼────────────────────┼──────────────────────────┘
                │                    │
                ▼                    ▼
     ┌──────────────────┐  ┌──────────────────┐
     │   Scality IAM    │  │ Scality Console  │
     │      API         │  │      API         │
-    │ (AWS Sig V4)     │  │  (JWT Token)     │
+    │  AWS SigV4       │  │  JWT / REST      │
     └──────────────────┘  └──────────────────┘
 ```
 
@@ -70,11 +74,53 @@ This document explains the architectural decisions, design patterns, and impleme
 
 | Component | Purpose | Files |
 |-----------|---------|-------|
-| **Provider** | Configuration entry point | `provider.go` |
-| **IAM Client** | AWS Signature V4 API communication | `client.go` |
-| **Console Client** | JWT-based API communication | `console_client.go` |
-| **Resources** | Terraform resource implementations | `resource_*.go` |
-| **Data Sources** | Read-only data retrieval (future) | `data_source_*.go` |
+| **Provider** | Configuration, auth, client setup | `internal/provider/provider.go` |
+| **IAM Client** | AWS SigV4 signed API calls | `internal/client/iam.go` |
+| **Console Client** | JWT-authenticated REST API | `internal/client/console.go` |
+| **ProviderClients** | Bundles both clients | `internal/client/provider_clients.go` |
+| **Resources** | Terraform resource implementations | `internal/resources/*/` |
+
+### Two API Surfaces
+
+Scality exposes two distinct APIs that the provider interacts with:
+
+| API | Auth | Format | Purpose |
+|-----|------|--------|---------|
+| **IAM API** | AWS Signature V4 (admin credentials) | JSON/Form-encoded actions | Accounts, access keys |
+| **Console API** | JWT Bearer (`x-access-token` header) | JSON/REST | Accounts (password-free), access keys |
+
+### Directory Structure
+
+```
+terraform-provider-scality/
+├── main.go                                      # Provider server entry point
+├── go.mod                                       # Module: github.com/scality/terraform-provider-scality
+├── Makefile                                     # build, install, test, testacc, fmt
+├── examples/
+│   ├── main.tf                                  # Basic IAM usage example
+│   └── multiple-accounts.tf                     # Multi-account with for_each
+├── internal/
+│   ├── client/
+│   │   ├── provider_clients.go                  # ProviderClients bundle
+│   │   ├── iam.go                               # IAM SigV4 client + data types + crypto helpers
+│   │   └── console.go                           # Console JWT client + token cache
+│   ├── provider/
+│   │   └── provider.go                          # Schema, Configure, resource registration
+│   └── resources/
+│       ├── account/                             # scality_account (IAM)
+│       │   ├── model.go
+│       │   └── resource.go
+│       ├── console_account/                     # scality_console_account (Console)
+│       │   ├── model.go
+│       │   └── resource.go
+│       └── account_access_key/                  # scality_account_access_key (IAM)
+│           ├── model.go
+│           └── resource.go
+```
+
+Each resource lives in its own package with exactly two files:
+- `model.go` — Terraform schema model struct with `tfsdk` tags
+- `resource.go` — CRUD implementation, schema, and conversion helpers
 
 ---
 
@@ -82,21 +128,30 @@ This document explains the architectural decisions, design patterns, and impleme
 
 ### 1. Separation of Concerns
 
-Decision: Split IAM and Console clients into separate files.
+Decision: Split IAM and Console clients into separate files with a shared bundle.
 
 Reasoning:
-- Different authentication mechanisms (AWS Sig V4 vs JWT)
+- Different authentication mechanisms (AWS SigV4 vs JWT)
+- Different wire formats (form-encoded actions vs JSON/REST)
 - Different API patterns and endpoints
-- Independent evolution of each API
-- Easier to maintain and test
+- Independent evolution of each API surface
 
-Example:
 ```
-client.go          → IAM API (Accounts, IAM policies, etc.)
-console_client.go  → Console API (Users, permissions, etc.)
+internal/client/iam.go      → IAM API (accounts, access keys)
+internal/client/console.go  → Console API (accounts, access keys)
 ```
 
-Benefits: Clear responsibility boundaries, no coupling between different API types, easy to add third API client if needed.
+The `ProviderClients` struct bundles both clients into a single value passed through `resp.ResourceData`, so each resource extracts only the client it needs:
+
+```go
+// IAM resources:
+r.client = clients.IAMClient
+
+// Console resources:
+r.client = clients.ConsoleClient
+```
+
+Benefits: Clear responsibility boundaries, no coupling between API types, easy to add a third client if needed.
 
 ---
 
@@ -107,39 +162,52 @@ Decision: Apply DRY where it reduces complexity, not religiously.
 #### Where We Applied DRY
 
 **1. Shared Constants**
+
 ```go
-// Used by both clients
+// client.go — IAM / AWS SigV4 constants
 const (
-    httpMethodPost     = "POST"
+    awsService         = "iam"
+    awsRegion          = "us-east-1"
+    awsAlgorithm       = "AWS4-HMAC-SHA256"
+    apiVersion         = "2010-05-08"
     defaultHTTPTimeout = 30 * time.Second
+    contentTypeForm    = "application/x-www-form-urlencoded"
+)
+
+// console_client.go — Console API constants
+const (
+    consoleAuthPath    = "/_/console/authenticate"
+    consoleAccountPath = "/_/console/vault/accounts"
+    consoleContentType = "application/json"
+    tokenCachePrefix   = ".scality_console_token_"
+    tokenSafetyMargin  = 84600  // 23.5 hours in seconds
+    filePermissions    = 0600
 )
 ```
 
-Reasoning: Changes once, benefits everywhere.
+Reasoning: Changes once, benefits everywhere. Self-documenting names replace magic values.
 
-**2. Helper Method in IAM Client**
+**2. IAM Helper Method**
+
 ```go
 func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error)
 ```
 
-Reasoning: Same request pattern for all IAM API calls. Reduces 160 lines of duplication to 40-line helper. Single place to add features (retry, metrics, etc.).
+The helper sets `Action` and `Version` automatically, handles SigV4 signing, HTTP execution, and returns the raw response. All 5 IAM operations (CreateAccount, GenerateAccountAccessKey, DeleteAccessKey, GetAccount, DeleteAccount) are thin wrappers around this helper.
 
 #### Where We Didn't Apply DRY
 
-**1. Console Client HTTP Calls**
+**Console client HTTP calls are kept separate from IAM.**
 
-Decision: Did NOT create a shared helper between IAM and Console clients.
-
-Reasoning:
 ```go
-// IAM uses AWS Signature V4 signing
+// IAM: AWS SigV4 authorization, form-encoded body
 headers, err := c.signRequest(method, url, payload)
 
-// Console uses JWT token
+// Console: JWT token header, JSON body
 httpReq.Header.Set("x-access-token", c.token)
-
-// Different enough that abstraction would add complexity
 ```
+
+These are different enough that a shared abstraction would add complexity without reducing it.
 
 Rule of Thumb:
 - Duplicate when abstractions would be more complex than the duplication
@@ -151,36 +219,17 @@ Rule of Thumb:
 
 Decision: Every public API method accepts `context.Context` as the first parameter.
 
-Signature Pattern:
 ```go
 func (c *Client) MethodName(ctx context.Context, params...) (result, error)
 ```
 
 Reasoning:
+1. **Cancellation** — Terraform provides context to resources; propagating it through enables proper lifecycle management
+2. **Timeouts** — HTTP clients respect context deadlines
+3. **Logging** — `tflog` uses context for structured logging
+4. **Future-proofing** — Distributed tracing, OpenTelemetry integration
 
-1. Cancellation Support
-   ```go
-   ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-   defer cancel()
-
-   account, err := client.CreateAccount(ctx, req)
-   // Automatically cancelled after 5 seconds
-   ```
-
-2. Integration with Terraform
-   - Terraform provides context to resources
-   - Propagating it through enables proper lifecycle management
-
-3. Future-Proofing
-   - Distributed tracing (OpenTelemetry)
-   - Request cancellation
-   - Deadline propagation
-
-4. Standard Go Practice
-   - Idiomatic since Go 1.7
-   - Expected by Go developers
-
-Example Flow:
+Flow:
 ```
 Terraform → Resource.Create(ctx) → Client.CreateAccount(ctx) → HTTP Request (with context)
                                                                          ↓
@@ -193,23 +242,17 @@ Terraform → Resource.Create(ctx) → Client.CreateAccount(ctx) → HTTP Reques
 
 Decision: All configuration values are package-level constants.
 
-Before (Magic Values):
+Before (magic values):
 ```go
 params.Set("Version", "2010-05-08")
-req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+region := "us-east-1"
 if tokenAge >= 84600 {
 ```
 
-After (Constants):
+After (constants):
 ```go
-const (
-    apiVersion      = "2010-05-08"
-    contentTypeForm = "application/x-www-form-urlencoded"
-    tokenSafetyMargin = 84600
-)
-
 params.Set("Version", apiVersion)
-req.Header.Set("Content-Type", contentTypeForm)
+region := awsRegion
 if tokenAge >= tokenSafetyMargin {
 ```
 
@@ -222,33 +265,48 @@ Benefits:
 | Type safety | Compiler catches typos |
 | Easy refactoring | Find all usages via IDE |
 
-Placement Strategy:
+---
+
+### 5. Atomic Create Pattern
+
+Decision: Save resource state immediately after account creation, before generating access keys.
+
+Create operations are two-step: create the account, then generate S3 access keys. If key generation fails after account creation, the resource must still be tracked in state — otherwise it becomes orphaned (exists on server but unknown to Terraform).
+
 ```go
-// Group by purpose
-const (
-    // AWS Signature V4 constants
-    awsService = "iam"
-    awsRegion  = "us-east-1"
-)
+// 1. Create account
+account, err := r.client.CreateAccount(ctx, createReq)
+if err != nil { ... return }
 
-const (
-    // API constants
-    apiVersion = "2010-05-08"
-)
+// 2. Save state immediately — resource is now tracked
+data.ID = types.StringValue(account.Account.Data.ID)
+resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 
-const (
-    // HTTP constants
-    httpMethodPost = "POST"
-)
+// 3. Generate keys — partial failure is now recoverable
+accessKey, err := r.client.GenerateAccountAccessKey(ctx, data.Name.ValueString())
+if err != nil {
+    resp.Diagnostics.AddError("Client Error",
+        "Account created successfully but access key generation failed. "+
+        "The account exists and is tracked in state. Run apply again or use "+
+        "scality_account_access_key to generate keys separately: " + err.Error())
+    return  // state already saved above
+}
+
+// 4. Update state with key data
+data.AccessKey = types.StringValue(accessKey.Data.ID)
+data.SecretKey = types.StringValue(accessKey.Data.Value)
+resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 ```
+
+Both `scality_account` and `scality_console_account` use this pattern.
 
 ---
 
 ## Client Architecture
 
-### IAM Client Design (`client.go`)
+### IAM Client (`client.go`)
 
-#### Key Components
+#### Design
 
 ```go
 type ScalityClient struct {
@@ -259,83 +317,56 @@ type ScalityClient struct {
 }
 ```
 
-Design Decision: Simple struct with minimal fields.
+Simple struct with clear dependencies. Immutable after creation.
 
-Reasoning: Easy to instantiate, clear dependencies, immutable after creation, no hidden state.
+#### Helper Method Pattern
 
-#### The Helper Method Pattern
-
-Core Design:
 ```go
-// Private helper - handles HTTP mechanics
-func (c *ScalityClient) doSignedRequest(
-    ctx context.Context,
-    action string,
-    params url.Values,
-) ([]byte, int, error) {
-    // 1. Set common parameters
+// Private helper — handles HTTP mechanics
+func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error) {
+    // 1. Set Action and Version automatically
     params.Set("Action", action)
     params.Set("Version", apiVersion)
 
-    // 2. Sign request
+    // 2. Sign request with AWS SigV4
     // 3. Create HTTP request with context
     // 4. Execute
-    // 5. Return body, status, error
+    // 5. Return body, status code, error
 }
 
-// Public methods - handle business logic
-func (c *ScalityClient) CreateAccount(
-    ctx context.Context,
-    req AccountCreateRequest,
-) (*AccountCreateResponse, error) {
-    // 1. Build parameters
+// Public methods — handle business logic and status code interpretation
+func (c *ScalityClient) CreateAccount(ctx context.Context, req AccountCreateRequest) (*AccountCreateResponse, error) {
     params := url.Values{}
     params.Set("name", req.Name)
 
-    // 2. Call helper
     body, statusCode, err := c.doSignedRequest(ctx, "CreateAccount", params)
-
-    // 3. Handle response codes
     if statusCode == 409 {
         return nil, fmt.Errorf("account already exists")
     }
-
-    // 4. Parse and return
+    // Parse and return
 }
 ```
 
-Why This Pattern Works:
+The helper returns status codes to callers because different operations interpret the same code differently — a 404 means "not found" in Read (return nil) but is unexpected in Create.
 
-1. **Clear Separation**
-   - Helper: HTTP/network concerns
-   - Method: Business logic
+#### SigV4 Signing
 
-2. **Easy to Extend**
-   ```go
-   // Adding retry logic? Just update helper:
-   func (c *ScalityClient) doSignedRequest(...) {
-       for attempt := 0; attempt < maxRetries; attempt++ {
-           // existing code
-       }
-   }
-   // All methods get retry automatically!
-   ```
-
-3. **Testability**
-   - Mock HTTP client in tests
-   - Test helper separately from business logic
-
-4. **Consistency**
-   - All API calls follow same pattern
-   - New developers know what to expect
+```go
+func (c *ScalityClient) signRequest(method, requestURL, payload string) (map[string]string, error) {
+    // 1. Parse URL to get host
+    // 2. Create canonical request (method, path, headers, payload hash)
+    // 3. Create string to sign (timestamp, credential scope, request hash)
+    // 4. Derive signing key (HMAC chain: date → region → service → "aws4_request")
+    // 5. Calculate signature
+    // 6. Return Authorization, X-Amz-Date, X-Amz-Content-Sha256 headers
+}
+```
 
 ---
 
-### Console Client Design (`console_client.go`)
+### Console Client (`console_client.go`)
 
-#### Token Management
-
-**Design Decision**: Built-in token caching with expiration.
+#### Design
 
 ```go
 type ConsoleClient struct {
@@ -347,79 +378,44 @@ type ConsoleClient struct {
 }
 ```
 
-Key Methods:
+#### Token Lifecycle
+
+The Console client manages JWT tokens with automatic file-based caching:
+
 ```go
-// Automatic token management
 func (c *ConsoleClient) Authenticate(ctx context.Context) error {
-    // 1. Try cached token first
+    // 1. Try cached token from file
     if cachedToken, err := c.getCachedToken(); err == nil {
         c.token = cachedToken
         return nil
     }
 
-    // 2. Authenticate and cache
-}
-
-// Called automatically by public methods
-func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, ...) {
-    if c.token == "" {
-        if err := c.Authenticate(ctx); err != nil {
-            return nil, err
-        }
-    }
-    // Use token...
+    // 2. Authenticate via POST /_/console/authenticate
+    // 3. Cache new token to file
 }
 ```
 
-Why This Design:
+Key design decisions:
 
-1. **Automatic Token Refresh**
-   - Methods check token existence
-   - Authenticate on-demand
-   - No manual token management
+1. **File-based caching** — Tokens are cached to `/tmp/.scality_console_token_<hash>` with 0600 permissions. Unique filenames per endpoint/username prevent collisions.
+2. **Pre-expiry refresh** — Tokens refresh after `tokenSafetyMargin` (23.5 hours), before the 24-hour JWT expiry, to prevent mid-request failures.
+3. **Lazy authentication** — Each public method checks `c.token` and calls `Authenticate(ctx)` on demand.
+4. **Cache survives restarts** — File-based cache persists across provider invocations, avoiding re-authentication on every `plan`/`apply`.
 
-2. **Performance**
-   - Cache tokens for 23.5 hours
-   - Avoid re-authentication on every call
-   - File-based cache survives provider restarts
+#### Why No Shared Helper?
 
-3. **Security**
-   - Cache files have 0600 permissions
-   - Unique cache per endpoint/username
-   - Automatic cleanup on expiry
+Console client methods don't use a `doRequest` helper like the IAM client.
 
-4. **Simplicity for Callers**
-   ```go
-   // Users don't think about tokens
-   client := NewConsoleClient(endpoint, user, pass)
-   account, err := client.CreateConsoleAccount(ctx, req)
-   // Token handled automatically
-   ```
+```go
+// Different URL patterns per operation
+POST /_/console/vault/accounts              // Create
+POST /_/console/vault/accounts/{id}/keys    // Generate keys
+GET  /_/console/vault/accounts/{id}         // Read
+DELETE /_/console/vault/accounts/{id}       // Delete account
+DELETE /_/console/vault/accounts/{id}/user  // Delete user
+```
 
-#### Why NOT Use Helper Method Here?
-
-Decision: Console client doesn't use `doSignedRequest()` pattern.
-
-Reasoning:
-
-1. **Different Authentication**
-   - Each request needs token header, not signature
-   - No signing process involved
-   - Simpler pattern doesn't warrant abstraction
-
-2. **Varied Endpoints**
-   ```go
-   // Different URL patterns
-   POST /_/console/vault/accounts        // Create
-   POST /_/console/vault/accounts/{id}/keys  // Generate keys
-   DELETE /_/console/vault/accounts/{id}     // Delete account
-   DELETE /_/console/vault/accounts/{id}/user // Delete user
-   ```
-
-3. **Method-Specific Logic**
-   - `DeleteConsoleAccount` is two-step process
-   - Different status code handling per endpoint
-   - Helper would need too many parameters
+Each method has different URL construction, status code handling, and request bodies. `DeleteConsoleAccount` is a two-step process (delete account, then delete user). A shared helper would need too many parameters to be useful.
 
 Guideline:
 - If methods are 70% similar: Extract helper
@@ -430,98 +426,130 @@ Guideline:
 
 ## Resource Pattern
 
-### Terraform Resource Lifecycle
+### Standard Resource Structure
 
-```go
-type ScalityAccountResource struct {
-    client *ScalityClient
-}
+Every resource follows this exact pattern:
 
-// Terraform calls these in order:
-Create(ctx, req, resp)  // terraform apply (new resource)
-Read(ctx, req, resp)    // terraform refresh/plan
-Update(ctx, req, resp)  // terraform apply (changes)
-Delete(ctx, req, resp)  // terraform destroy
+```
+internal/resources/<name>/
+├── model.go      # Data model with tfsdk tags
+└── resource.go   # Schema, Configure, CRUD, conversion helpers
 ```
 
-### Standard Resource Pattern
-
-File Structure: `resource_<name>.go`
-
-Example: `resource_account.go`
+#### Model (`model.go`)
 
 ```go
-// 1. Define schema
-func (r *ScalityAccountResource) Schema(ctx context.Context, ...) schema.Schema {
-    return schema.Schema{
-        Attributes: map[string]schema.Attribute{
-            "name": schema.StringAttribute{
-                Required: true,
-                // ...
-            },
-            // ...
-        },
-    }
+type AccountResourceModel struct {
+    ID           types.String `tfsdk:"id"`
+    Name         types.String `tfsdk:"name"`
+    EmailAddress types.String `tfsdk:"email_address"`
+    QuotaMax     types.Int64  `tfsdk:"quota_max"`
+    AccessKey    types.String `tfsdk:"access_key"`
+    SecretKey    types.String `tfsdk:"secret_key"`
+    // ...
+}
+```
+
+Models map directly to the Terraform schema via `tfsdk` struct tags. No business logic lives here.
+
+#### Resource (`resource.go`)
+
+Every resource implements these methods in order:
+
+```go
+// 1. Type assertions
+var _ resource.Resource = &AccountResource{}
+var _ resource.ResourceWithImportState = &AccountResource{}
+
+// 2. Struct holds client reference
+type AccountResource struct {
+    client *client.IAMClient
 }
 
-// 2. Implement Create
-func (r *ScalityAccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+// 3. Constructor
+func NewAccountResource() resource.Resource { return &AccountResource{} }
+
+// 4. Metadata — sets type name
+func (r *AccountResource) Metadata(...)
+
+// 5. Schema — defines attributes with plan modifiers
+func (r *AccountResource) Schema(...)
+
+// 6. Configure — extracts client from ProviderClients
+func (r *AccountResource) Configure(...) {
+    clients, ok := req.ProviderData.(*client.ProviderClients)
+    r.client = clients.IAM
+}
+
+// 7. CRUD operations
+func (r *AccountResource) Create(...)   // Atomic: create → save state → gen keys → save state
+func (r *AccountResource) Read(...)     // Drift detection via API
+func (r *AccountResource) Update(...)   // Error safety net (all fields RequiresReplace)
+func (r *AccountResource) Delete(...)
+
+// 8. Import
+func (r *AccountResource) ImportState(...)
+```
+
+#### CRUD Pattern
+
+```go
+func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
     // a. Read plan data
     var data AccountResourceModel
     resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+    if resp.Diagnostics.HasError() {
+        return
+    }
 
     // b. Call client
     account, err := r.client.CreateAccount(ctx, createReq)
     if err != nil {
-        resp.Diagnostics.AddError("Client Error", ...)
+        resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create account: %s", err))
         return
     }
 
-    // c. Update state
+    // c. Save state immediately (atomic pattern)
     data.ID = types.StringValue(account.Account.Data.ID)
     resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-}
 
-// 3. Implement Read (for drift detection)
-func (r *ScalityAccountResource) Read(ctx context.Context, ...) {
-    // Get current state from API
-    // Update Terraform state
-    // If not found, remove from state
-}
-
-// 4. Implement Delete
-func (r *ScalityAccountResource) Delete(ctx context.Context, ...) {
-    // Call delete API
-    // Remove from state (automatic)
+    // d. Generate keys, update state again
+    accessKey, err := r.client.GenerateAccountAccessKey(ctx, data.Name.ValueString())
+    // ...
 }
 ```
 
-Design Decisions:
+### RequiresReplace on All Mutable Fields
 
-1. **No Update Method for Accounts**
-   - Many Scality account fields are immutable
-   - Changes require recreation (ForceNew)
-   - Simpler than partial updates
+Scality APIs do not support in-place updates for any account attribute. All user-configurable fields use `RequiresReplace` plan modifiers to force Terraform to destroy and recreate the resource when values change:
 
-2. **Sensitive Data Handling**
-   ```go
-   "access_key": schema.StringAttribute{
-       Computed:  true,
-       Sensitive: true,  // Hidden in terraform show
-   },
-   ```
+```go
+"email_address": schema.StringAttribute{
+    Required: true,
+    PlanModifiers: []planmodifier.String{
+        stringplanmodifier.RequiresReplace(),
+    },
+},
+```
 
-3. **Error Handling**
-   ```go
-   // Don't return errors, add to diagnostics
-   if err != nil {
-       resp.Diagnostics.AddError(
-           "Client Error",
-           fmt.Sprintf("Unable to create account: %s", err),
-       )
-       return
-   }
-   ```
+The Update method exists (required by the interface) but serves as an error safety net:
+
+```go
+func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+    resp.Diagnostics.AddError(
+        "Update Not Supported",
+        "All scality_account attributes require resource replacement. This is a provider bug if you see this error.",
+    )
+}
+```
+
+### Resource Summary
+
+| Resource | Client | CRUD | Import | Notes |
+|----------|--------|------|--------|-------|
+| `scality_account` | IAM | CR_D | By name | Keys auto-generated, atomic create |
+| `scality_console_account` | Console | CR_D | By name | Optional password gen, two-step delete |
+| `scality_account_access_key` | IAM | CR_D | `account_name/access_key_id` | Secret only at creation, state-only read |
 
 ---
 
@@ -529,30 +557,18 @@ Design Decisions:
 
 ### Step-by-Step Guide
 
-#### Scenario: Adding "List Accounts" Functionality
+#### For IAM API Resources
 
-### Step 1: Add to Client
-
-Choose the Right Client:
-- IAM API call: `client.go`
-- Console API call: `console_client.go`
-
-For IAM API Example:
+**Step 1: Add client method to `internal/client/iam.go`**
 
 ```go
-// 1. Define response type (in client.go)
-type AccountListResponse struct {
-    Accounts []AccountData `json:"accounts"`
-}
-
-// 2. Add the method
 func (c *ScalityClient) ListAccounts(ctx context.Context, maxResults int) (*AccountListResponse, error) {
     params := url.Values{}
     if maxResults > 0 {
         params.Set("MaxResults", fmt.Sprintf("%d", maxResults))
     }
 
-    // Use the helper!
+    // Version and Action are set automatically by doSignedRequest
     body, statusCode, err := c.doSignedRequest(ctx, "ListAccounts", params)
     if err != nil {
         return nil, err
@@ -566,180 +582,79 @@ func (c *ScalityClient) ListAccounts(ctx context.Context, maxResults int) (*Acco
     if err := json.Unmarshal(body, &result); err != nil {
         return nil, fmt.Errorf("failed to parse response: %w", err)
     }
-
     return &result, nil
 }
 ```
 
-The helper handles:
-- Setting Action and Version
-- AWS Signature signing
-- HTTP request creation with context
-- Request execution
-- Error handling
+**Step 2: Create resource package**
 
-### Step 2: Add Data Source (Read-Only Resource)
-
-Create `data_source_account_list.go`:
-
-```go
-package provider
-
-type AccountListDataSource struct {
-    client *ScalityClient
-}
-
-func (d *AccountListDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-    resp.TypeName = req.ProviderTypeName + "_account_list"
-}
-
-func (d *AccountListDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-    resp.Schema = schema.Schema{
-        Description: "List Scality accounts",
-        Attributes: map[string]schema.Attribute{
-            "accounts": schema.ListNestedAttribute{
-                Computed: true,
-                NestedObject: schema.NestedAttributeObject{
-                    Attributes: map[string]schema.Attribute{
-                        "id": schema.StringAttribute{
-                            Computed: true,
-                        },
-                        "name": schema.StringAttribute{
-                            Computed: true,
-                        },
-                        // ...
-                    },
-                },
-            },
-        },
-    }
-}
-
-func (d *AccountListDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-    var data AccountListDataSourceModel
-
-    // Call the client method we just created
-    accounts, err := d.client.ListAccounts(ctx, 0)
-    if err != nil {
-        resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list accounts: %s", err))
-        return
-    }
-
-    // Map to Terraform data model
-    for _, account := range accounts.Accounts {
-        data.Accounts = append(data.Accounts, AccountModel{
-            ID:   types.StringValue(account.Data.ID),
-            Name: types.StringValue(account.Data.Name),
-            // ...
-        })
-    }
-
-    resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-}
+```
+internal/resources/widget/
+├── model.go      # WidgetResourceModel struct
+└── resource.go   # NewWidgetResource, CRUD
 ```
 
-### Step 3: Register Data Source
+Follow the standard resource pattern (see [Resource Pattern](#resource-pattern)).
 
-In `provider.go`:
+**Step 3: Register in `provider.go`**
 
 ```go
-func (p *ScalityProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-    return []func() datasource.DataSource{
-        func() datasource.DataSource {
-            return &AccountListDataSource{client: p.iamClient}
-        },
-        // Add more data sources...
+import widget "github.com/scality/terraform-provider-scality/internal/resources/widget"
+
+func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resource {
+    return []func() resource.Resource{
+        account.NewAccountResource,
+        consoleaccount.NewConsoleAccountResource,
+        accountaccesskey.NewAccountAccessKeyResource,
+        widget.NewWidgetResource,  // new
     }
 }
 ```
 
-### Step 4: Usage Example
+#### For Console API Resources
 
-```hcl
-# In user's Terraform code
-data "scality_account_list" "all" {}
-
-output "account_count" {
-  value = length(data.scality_account_list.all.accounts)
-}
-```
-
----
-
-### Adding Resource-Based API Calls
-
-#### Example: Add "Update Account Quota"
+Same pattern, but add methods to `internal/client/console.go` and ensure token authentication:
 
 ```go
-// 1. Add to client.go
-func (c *ScalityClient) UpdateAccountQuota(ctx context.Context, accountName string, quotaMax int64) error {
-    params := url.Values{}
-    params.Set("AccountName", accountName)
-    params.Set("QuotaMax", fmt.Sprintf("%d", quotaMax))
-
-    body, statusCode, err := c.doSignedRequest(ctx, "UpdateAccountQuota", params)
-    if err != nil {
-        return err
-    }
-
-    if statusCode != 200 {
-        return fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
-    }
-
-    return nil
-}
-
-// 2. Add Update method to resource_account.go
-func (r *ScalityAccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-    var plan, state AccountResourceModel
-
-    resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-    resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
-    // Only quota changed?
-    if plan.QuotaMax != state.QuotaMax {
-        err := r.client.UpdateAccountQuota(
-            ctx,
-            plan.Name.ValueString(),
-            plan.QuotaMax.ValueInt64(),
-        )
-        if err != nil {
-            resp.Diagnostics.AddError("Update Error", err.Error())
-            return
+func (c *ConsoleClient) CreateWidget(ctx context.Context, name string) (*WidgetResponse, error) {
+    // 1. Ensure authenticated
+    if c.token == "" {
+        if err := c.Authenticate(ctx); err != nil {
+            return nil, err
         }
     }
 
-    resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-}
+    // 2. Build URL and request
+    widgetURL := fmt.Sprintf("%s/_/console/widgets/%s", c.Endpoint, name)
+    httpReq, err := http.NewRequestWithContext(ctx, "POST", widgetURL, body)
 
-// 3. Update schema to allow updates
-"quota_max": schema.Int64Attribute{
-    Optional: true,
-    // Remove ForceNew if present
-},
+    // 3. Set headers
+    httpReq.Header.Set("Content-Type", consoleContentType)
+    httpReq.Header.Set("x-access-token", c.token)
+
+    // 4. Execute and handle response
+}
 ```
 
----
-
 ### Complexity Decision Tree
-
-When adding new functionality:
 
 ```
 Is this an API call?
 ├─ Yes
-│  ├─ IAM API (AWS Signature)?
-│  │  └─ Add to client.go, use doSignedRequest helper
-│  │     → Low complexity (helper does heavy lifting)
+│  ├─ IAM API (SigV4)?
+│  │  └─ Add to internal/client/iam.go, use DoSignedRequest helper
+│  │     → Returns (body, statusCode, error)
+│  │     → Caller handles status code interpretation
 │  │
 │  └─ Console API (JWT)?
-│     └─ Add to console_client.go, check token first
-│        → Medium complexity (handle authentication)
+│     └─ Add to internal/client/console.go, check token first
+│        → Handle authentication on demand
+│        → Each method constructs its own URL
 │
 └─ No
    └─ Is this a Terraform resource?
       ├─ Read-only → Create data source
-      └─ Create/Update/Delete → Create resource
+      └─ Mutable → Create resource with model.go + resource.go in internal/resources/<name>/
 ```
 
 ---
@@ -748,92 +663,39 @@ Is this an API call?
 
 ### Principles
 
-1. **Wrap errors with context**
-2. **Meaningful messages for users**
-3. **Distinguish error types**
+1. **Wrap errors with context** using `%w`
+2. **Meaningful messages** that help users solve problems
+3. **Distinguish "not found" from real errors** — return `nil` for missing resources
 4. **Never swallow errors**
 
-### Error Wrapping Pattern
+### Error Wrapping
 
 ```go
-// Good: Wrap with context
+// Good: Wrap with context, preserve error chain
 if err != nil {
     return nil, fmt.Errorf("failed to create account: %w", err)
 }
 
-// Bad: Lose context
-if err != nil {
-    return nil, err
-}
-
-// Bad: Break error chain
+// Bad: Lose error chain
 if err != nil {
     return nil, fmt.Errorf("failed to create account: %s", err)
 }
 ```
 
-Why use `%w` instead of `%s`?
-
-```go
-err := client.CreateAccount(ctx, req)
-// err wraps HTTP error wraps network error
-
-// With %w: Can unwrap to find root cause
-if errors.Is(err, context.DeadlineExceeded) {
-    // Handle timeout specifically
-}
-
-// With %s: Error chain is broken
-// Can't detect what actually failed
-```
-
-### HTTP Status Code Handling
-
-Pattern Used:
-
-```go
-body, statusCode, err := c.doSignedRequest(ctx, action, params)
-if err != nil {
-    return nil, err  // Network/signing error
-}
-
-// Handle specific status codes
-switch statusCode {
-case 200, 201:
-    // Success, parse response
-case 404:
-    return nil, nil  // Resource doesn't exist (for Read)
-case 409:
-    return nil, fmt.Errorf("account already exists")
-case 403:
-    return nil, fmt.Errorf("permission denied: check credentials")
-default:
-    return nil, fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
-}
-```
-
-Design Decision: Return status code from helper.
-
-Different methods need different status handling. A 404 means different things (error in Create, ok in Read), so business logic decides how to interpret codes.
+Using `%w` preserves the error chain so callers can use `errors.Is()` and `errors.As()` to inspect root causes.
 
 ### User-Facing Error Messages
 
-In Resources:
+In resources, errors go through diagnostics with a summary and detail:
 
 ```go
-if err != nil {
-    resp.Diagnostics.AddError(
-        "Client Error",  // Summary (shown bold)
-        fmt.Sprintf("Unable to create account '%s': %s",
-            data.Name.ValueString(),
-            err,  // Detailed message
-        ),
-    )
-    return
-}
+resp.Diagnostics.AddError(
+    "Client Error",   // Summary — shown bold
+    fmt.Sprintf("Unable to create account '%s': %s", data.Name.ValueString(), err),
+)
 ```
 
-Special Case: Helpful Delete Errors:
+Special case — actionable delete errors:
 
 ```go
 if statusCode == 409 {
@@ -854,72 +716,77 @@ if statusCode == 409 {
 }
 ```
 
-This helps users solve problems without reading API docs.
+### Not-Found Handling
+
+IAM client returns `nil` for 404:
+
+```go
+if statusCode == 404 {
+    return nil, nil  // resource doesn't exist
+}
+```
+
+Resources remove the resource from state when the API returns nil:
+
+```go
+if account == nil {
+    resp.State.RemoveResource(ctx)  // triggers recreation on next apply
+    return
+}
+```
 
 ---
 
 ## State Management
 
-### Terraform State Basics
+### Drift Detection
 
-Terraform state is the record of infrastructure stored in `terraform.tfstate`. It maps resources to real-world objects. Our responsibility is to keep state accurate.
-
-### Read Method: Drift Detection
+On every `plan` or `apply`, Terraform calls `Read()` for each resource. The Read method checks the real infrastructure state:
 
 ```go
-func (r *ScalityAccountResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
     var data AccountResourceModel
     resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 
-    // Check if resource still exists
     account, err := r.client.GetAccount(ctx, data.Name.ValueString())
-    if err != nil {
-        resp.Diagnostics.AddError("Client Error", ...)
-        return
-    }
-
-    // Resource was deleted outside Terraform
     if account == nil {
-        resp.State.RemoveResource(ctx)
+        resp.State.RemoveResource(ctx)  // deleted outside Terraform
         return
     }
 
-    // Update state with current values
+    data.ID = types.StringValue(account.Data.ID)
+    data.EmailAddress = types.StringValue(account.Data.EmailAddress)
     data.QuotaMax = types.Int64Value(account.Data.QuotaMax)
     resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 ```
 
-If someone deletes an account outside Terraform, the next `terraform plan` will detect the drift and plan to recreate it.
+### Sensitive Fields Preservation
 
-### Sensitive Data in State
-
-Problem: Access keys are stored in the state file.
-
-Solution: Mark as sensitive.
+Access keys and secret keys cannot be retrieved after creation. These fields are preserved from state during Read by simply not overwriting them. Combined with `UseStateForUnknown` plan modifiers on the access key resource:
 
 ```go
-"access_key": schema.StringAttribute{
+"secret_key": schema.StringAttribute{
     Computed:  true,
-    Sensitive: true,  // Masked in output, but still in state
+    Sensitive: true,
+    PlanModifiers: []planmodifier.String{
+        stringplanmodifier.UseStateForUnknown(),
+    },
 },
 ```
 
-Important: State file itself must be secured.
+### State-Only Read
 
-```hcl
-# terraform.tf - Secure state
-terraform {
-  backend "s3" {
-    bucket         = "terraform-state"
-    key            = "scality/terraform.tfstate"
-    encrypt        = true
-    dynamodb_table = "terraform-locks"
-  }
+The `scality_account_access_key` resource has no API endpoint to retrieve key details after creation. Its Read method preserves the current state:
+
+```go
+func (r *AccountAccessKeyResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+    var data AccountAccessKeyResourceModel
+    resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+    // No API call — preserve state as-is
+    resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 ```
-
-Documentation should tell users to protect the state file.
 
 ---
 
@@ -930,109 +797,96 @@ Documentation should tell users to protect the state file.
 Never log credentials:
 
 ```go
-// Good: Credentials stay private
-tflog.Debug(ctx, "Creating account", map[string]interface{}{
+// Good: Log operation context, not secrets
+tflog.Debug(ctx, "Creating Scality account", map[string]any{
     "name": data.Name.ValueString(),
-    // DO NOT log access_key or secret_key
 })
 
-// Bad: Exposes credentials
-tflog.Debug(ctx, "Account created", map[string]interface{}{
-    "access_key": account.AccessKey,  // NEVER DO THIS
+// Bad: Would expose credentials in logs
+tflog.Debug(ctx, "Account created", map[string]any{
+    "access_key": data.AccessKey.ValueString(), // NEVER
 })
 ```
 
-### 2. Token Caching Security
+### 2. Schema-Level Sensitivity
 
-Console Client Token Cache:
+All credential fields are marked `Sensitive: true`:
 
 ```go
-// Use secure permissions
-const filePermissions = 0600  // Owner read/write only
-
-if err := os.WriteFile(cacheFile, data, filePermissions); err != nil {
-    return err
-}
+"access_key": schema.StringAttribute{
+    Computed:  true,
+    Sensitive: true,  // masked in terraform show/plan output
+},
 ```
 
-Cache Location:
-```go
-// Temporary directory (usually /tmp or C:\Temp)
-cacheDir := os.TempDir()
-
-// Unique filename using hash
-cacheFile := filepath.Join(cacheDir, tokenCachePrefix+hash)
-```
-
-This design uses temporary directories that are cleaned on reboot, creates unique filenames per endpoint/username to avoid collisions, and sets restrictive permissions so only the current user can access tokens.
+This covers: provider access/secret keys, provider console password, account access/secret keys, and generated console passwords.
 
 ### 3. Environment Variable Support
 
-Example configuration:
+All provider configuration supports environment variable overrides:
+
 ```bash
-export SCALITY_ENDPOINT="http://10.164.169.247"
-export SCALITY_ACCESS_KEY="..."
-export SCALITY_SECRET_KEY="..."
+# IAM API
+export SCALITY_ENDPOINT="http://scality.example.com"
+export SCALITY_ACCESS_KEY="admin-access-key"
+export SCALITY_SECRET_KEY="admin-secret-key"
+
+# Console API
+export SCALITY_CONSOLE_ENDPOINT="http://scality.example.com:8080"
+export SCALITY_CONSOLE_USERNAME="admin"
+export SCALITY_CONSOLE_PASSWORD="mySuperPassword"
+
+# TLS
+export SCALITY_INSECURE_SKIP_VERIFY="true"
 ```
 
-Provider reads automatically:
+The provider reads config first, falls back to environment:
+
 ```go
-func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-    // Prefer config, fallback to env
-    endpoint := config.Endpoint.ValueString()
-    if endpoint == "" {
-        endpoint = os.Getenv("SCALITY_ENDPOINT")
-    }
-    // ...
+endpoint := config.Endpoint.ValueString()
+if endpoint == "" {
+    endpoint = os.Getenv("SCALITY_ENDPOINT")
 }
 ```
 
 Benefits: credentials are not committed to version control, CI/CD integration is simpler, and follows 12-factor app principles.
 
+### 4. TLS Configuration
+
+TLS verification is enabled by default. The `insecure_skip_verify` option exists for development environments with self-signed certificates:
+
+```go
+if insecureSkipVerify {
+    httpClient.Transport = &http.Transport{
+        TLSClientConfig: &tls.Config{
+            InsecureSkipVerify: true,
+        },
+    }
+}
+```
+
+### 5. Token Cache Security
+
+Console JWT tokens are cached with restrictive permissions:
+
+```go
+const filePermissions = 0600  // Owner read/write only
+
+func (c *ConsoleClient) cacheToken(token string) error {
+    cacheFile := c.getCacheFile()  // /tmp/.scality_console_token_<md5hash>
+    return os.WriteFile(cacheFile, data, filePermissions)
+}
+```
+
+Unique filenames per endpoint/username prevent collisions. Temporary directory is cleaned on reboot.
+
 ---
 
 ## Testing Strategy
 
-### Unit Testing Approach
+### Acceptance Testing
 
-Mock HTTP Client:
-
-```go
-// Create mock HTTP client
-type MockTransport struct {
-    Response *http.Response
-    Err      error
-}
-
-func (m *MockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-    return m.Response, m.Err
-}
-
-// Test example
-func TestCreateAccount(t *testing.T) {
-    // Setup mock
-    mockResp := &http.Response{
-        StatusCode: 201,
-        Body:       io.NopCloser(strings.NewReader(`{"account":{"data":{"id":"123"}}}`)),
-    }
-
-    client := &ScalityClient{
-        Endpoint:   "http://test",
-        HTTPClient: &http.Client{Transport: &MockTransport{Response: mockResp}},
-    }
-
-    // Test
-    ctx := context.Background()
-    account, err := client.CreateAccount(ctx, req)
-
-    assert.NoError(t, err)
-    assert.Equal(t, "123", account.Account.Data.ID)
-}
-```
-
-### Integration Testing
-
-Acceptance Tests (with real API):
+Tests run against a real Scality instance with `TF_ACC=1`:
 
 ```go
 func TestAccScalityAccount_basic(t *testing.T) {
@@ -1052,183 +906,68 @@ func TestAccScalityAccount_basic(t *testing.T) {
 }
 ```
 
-### Table-Driven Tests
+### Manual Verification Workflow
 
-Recommended Pattern:
+Each resource has been verified with a full lifecycle:
 
-```go
-func TestHandleStatusCode(t *testing.T) {
-    tests := []struct {
-        name           string
-        statusCode     int
-        body           string
-        expectedError  string
-        expectedResult bool
-    }{
-        {
-            name:           "Success 200",
-            statusCode:     200,
-            body:           `{"success":true}`,
-            expectedError:  "",
-            expectedResult: true,
-        },
-        {
-            name:          "Conflict 409",
-            statusCode:    409,
-            body:          `{"error":"already exists"}`,
-            expectedError: "already exists",
-        },
-        // More cases...
-    }
+1. `tofu plan` — verify plan output is correct
+2. `tofu apply` — create the resource
+3. `tofu plan` (again) — verify no drift
+4. Verify in Scality UI — confirm resource exists
+5. `tofu destroy` — delete the resource
+6. Verify in Scality UI — confirm deletion
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            // Test logic
-        })
-    }
-}
+### Makefile Targets
+
+```makefile
+test:     go test ./... -v              # Unit tests
+testacc:  TF_ACC=1 go test ./... -v     # Acceptance tests (requires real instance)
+fmt:      gofmt -w .                     # Format
+build:    go build ./...                 # Build
+install:  # Install to ~/.terraform.d/plugins/
 ```
 
 ---
 
 ## Future Extensibility
 
-### Designed for Growth
+### Adding More Resources
 
-#### 1. Adding More Resources
+Pattern is established — for each new resource:
+1. Add client methods to `internal/client/iam.go` or `internal/client/console.go`
+2. Create `internal/resources/<name>/model.go` and `resource.go`
+3. Register in `internal/provider/provider.go`
 
-Current resources:
-- `scality_account` (IAM)
-- `scality_console_account` (Console)
+### Data Sources
 
-Easy to add:
-```
-resource_bucket.go          → S3 bucket resource
-resource_iam_user.go        → IAM user resource
-resource_iam_policy.go      → IAM policy resource
-resource_group.go           → User group resource
-```
-
-Pattern:
-1. Add client method
-2. Create resource file
-3. Register in provider.go
-4. Write tests
-
-#### 2. Data Sources for Read Operations
-
-Future data sources:
-```go
-data_source_account.go       → Read single account
-data_source_account_list.go  → List all accounts
-data_source_bucket.go        → Read bucket info
-```
-
-Usage:
-```hcl
-# Read existing account
-data "scality_account" "existing" {
-  name = "production"
-}
-
-# Use in other resources
-resource "aws_iam_policy" "s3_access" {
-  policy = jsonencode({
-    Statement = [{
-      Resource = "arn:aws:s3:::${data.scality_account.existing.canonical_id}/*"
-    }]
-  })
-}
-```
-
-#### 3. Client Enhancements
-
-Adding Features to Helper Method:
+Currently no data sources are implemented. Future candidates:
 
 ```go
-// Current
-func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error) {
-    // ...existing code...
+func (p *ScalityProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+    return []func() datasource.DataSource{
+        // data.scality_account — look up existing account
+        // data.scality_account_list — list all accounts
+    }
 }
+```
 
-// Future: Add retry logic
-func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error) {
-    var lastErr error
+### Client Enhancements
 
+Adding features to the helper methods benefits all operations automatically:
+
+```go
+// Future: Add retry logic to doSignedRequest
+func (c *ScalityClient) doSignedRequest(...) ([]byte, int, error) {
     for attempt := 0; attempt < maxRetries; attempt++ {
-        body, status, err := c.executeRequest(ctx, action, params)
-
-        // Success
+        body, status, err := c.executeRequest(...)
         if err == nil && status < 500 {
             return body, status, nil
         }
-
-        // Retry on 5xx or network errors
-        if status >= 500 || err != nil {
-            lastErr = err
-            time.Sleep(backoff(attempt))
-            continue
-        }
-
-        return body, status, err
+        time.Sleep(backoff(attempt))
     }
-
     return nil, 0, fmt.Errorf("max retries exceeded: %w", lastErr)
 }
-```
-
-All API calls get retry automatically when added to the helper.
-
-#### 4. Observability
-
-Future Enhancement:
-
-```go
-func (c *ScalityClient) doSignedRequest(ctx context.Context, action string, params url.Values) ([]byte, int, error) {
-    // Add metrics
-    start := time.Now()
-    defer func() {
-        metrics.RecordAPICall(action, time.Since(start))
-    }()
-
-    // Add tracing
-    ctx, span := tracer.Start(ctx, "scality."+action)
-    defer span.End()
-
-    // Existing code...
-}
-```
-
-Benefits: performance monitoring, distributed tracing, and error rate tracking can be added without changing resources.
-
-#### 5. Alternative Authentication
-
-Adding OAuth2 Support:
-
-```go
-// New client type
-type OAuthClient struct {
-    Endpoint     string
-    ClientID     string
-    ClientSecret string
-    HTTPClient   *http.Client
-    token        *oauth2.Token
-}
-
-// Implement same interface
-func (c *OAuthClient) CreateAccount(ctx context.Context, req AccountCreateRequest) (*AccountCreateResponse, error) {
-    // OAuth-specific implementation
-}
-
-// Resources can use either client
-type ScalityAccountResource struct {
-    client AccountCreator  // Interface, not concrete type
-}
-
-type AccountCreator interface {
-    CreateAccount(ctx context.Context, req AccountCreateRequest) (*AccountCreateResponse, error)
-    // ... other methods
-}
+// All IAM operations get retry automatically.
 ```
 
 ---
@@ -1258,170 +997,22 @@ Target:
 
 If exceeded:
 1. Can you extract a helper?
-2. Can you simplify logic?
-3. Is this inherently complex? (then document well)
-
-### Cognitive Load Reduction
-
-Good:
-```go
-// Clear, linear flow
-func CreateAccount(ctx context.Context, req Request) (*Response, error) {
-    // 1. Build parameters
-    params := buildParams(req)
-
-    // 2. Make request
-    body, status, err := c.doSignedRequest(ctx, "CreateAccount", params)
-    if err != nil {
-        return nil, err
-    }
-
-    // 3. Handle response
-    return parseAccountResponse(body, status)
-}
-```
-
-Bad:
-```go
-// Nested, hard to follow
-func CreateAccount(ctx context.Context, req Request) (*Response, error) {
-    if req.Name != "" {
-        if req.Email != "" {
-            params := url.Values{}
-            if req.Quota > 0 {
-                params.Set("quota", ...)
-                if req.External != "" {
-                    // 5 levels deep!
-                }
-            }
-        }
-    }
-}
-```
-
----
-
-## Maintenance Guidelines
+2. Can you simplify the logic?
+3. Is this inherently complex? (document well)
 
 ### Code Review Checklist
 
 When adding new code:
 
-- [ ] Uses context.Context as first parameter
+- [ ] Uses `context.Context` as first parameter
 - [ ] Constants defined for magic values
 - [ ] Errors wrapped with `%w`
 - [ ] Sensitive data marked in schema
 - [ ] HTTP requests use `NewRequestWithContext`
 - [ ] Follows existing patterns (IAM helper or Console token check)
-- [ ] Includes godoc comments
-- [ ] Tests added (unit or acceptance)
-
-### Documentation Standards
-
-Every Public Function:
-```go
-// CreateAccount creates a new Scality account with S3 credentials.
-//
-// The account is created via the IAM API and access keys are automatically
-// generated. Returns AccountCreateResponse containing the account details
-// and credentials, or an error if creation fails.
-func (c *ScalityClient) CreateAccount(ctx context.Context, req AccountCreateRequest) (*AccountCreateResponse, error)
-```
-
-Complex Logic:
-```go
-// Check if token is expired
-// Use safety margin (23.5 hours) to refresh before actual expiry (24 hours)
-// This prevents race conditions where token expires during a request
-tokenAge := time.Now().Unix() - int64(cache.Timestamp)
-if tokenAge >= tokenSafetyMargin {
-    _ = os.Remove(cacheFile)
-    return "", fmt.Errorf("token expired")
-}
-```
-
-### Versioning Strategy
-
-When to Bump Version:
-
-| Change | Version | Example |
-|--------|---------|---------|
-| Add resource | Minor (0.2.0) | Add `scality_bucket` |
-| Add optional field | Patch (0.1.1) | Add `external_id` to account |
-| Change required field | Major (2.0.0) | Remove `email` requirement |
-| Bug fix | Patch (0.1.1) | Fix state drift issue |
-| Breaking change | Major (2.0.0) | Change attribute names |
-
----
-
-## Common Patterns Reference
-
-### Adding New IAM API Method
-
-```go
-// 1. Define request/response types (if needed)
-type NewFeatureRequest struct {
-    Field1 string
-    Field2 int
-}
-
-type NewFeatureResponse struct {
-    Result string `json:"result"`
-}
-
-// 2. Add method using helper
-func (c *ScalityClient) NewFeature(ctx context.Context, req NewFeatureRequest) (*NewFeatureResponse, error) {
-    params := url.Values{}
-    params.Set("Field1", req.Field1)
-    params.Set("Field2", fmt.Sprintf("%d", req.Field2))
-
-    body, statusCode, err := c.doSignedRequest(ctx, "ActionName", params)
-    if err != nil {
-        return nil, err
-    }
-
-    if statusCode != 200 {
-        return nil, fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
-    }
-
-    var result NewFeatureResponse
-    if err := json.Unmarshal(body, &result); err != nil {
-        return nil, fmt.Errorf("failed to parse response: %w", err)
-    }
-
-    return &result, nil
-}
-```
-
-### Adding New Console API Method
-
-```go
-func (c *ConsoleClient) NewFeature(ctx context.Context, param string) (*Response, error) {
-    // 1. Ensure authenticated
-    if c.token == "" {
-        if err := c.Authenticate(ctx); err != nil {
-            return nil, err
-        }
-    }
-
-    // 2. Build URL
-    url := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, param)
-
-    // 3. Create request
-    httpReq, err := http.NewRequestWithContext(ctx, httpMethodPost, url, nil)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create request: %w", err)
-    }
-
-    // 4. Set headers
-    httpReq.Header.Set("Content-Type", consoleContentType)
-    httpReq.Header.Set("x-access-token", c.token)
-
-    // 5. Execute and handle response
-    resp, err := c.HTTPClient.Do(httpReq)
-    // ... standard response handling
-}
-```
+- [ ] No credentials logged
+- [ ] Resource follows model.go + resource.go structure
+- [ ] Mutable fields use `RequiresReplace` (if API doesn't support update)
 
 ---
 
@@ -1429,60 +1020,23 @@ func (c *ConsoleClient) NewFeature(ctx context.Context, param string) (*Response
 
 ### Key Takeaways
 
-1. Separation of Concerns
-   - IAM client for AWS Signature V4 API
-   - Console client for JWT-based API
-   - Clean boundaries, independent evolution
-
-2. DRY with Pragmatism
-   - Helper methods where patterns are identical
-   - Keep separate when abstraction adds complexity
-   - Share constants, not necessarily code
-
-3. Context-First Design
-   - All public methods accept context
-   - Enables cancellation and timeouts
-   - Future-proof for tracing
-
-4. Constants for Configuration
-   - No magic values
-   - Self-documenting code
-   - Easy maintenance
-
-5. Simple Error Handling
-   - Wrap with context (`%w`)
-   - Meaningful messages
-   - Help users solve problems
-
-6. Extensibility by Design
-   - Easy to add new API calls
-   - Pattern established for resources
-   - Helper methods benefit all callers
+1. **Two API surfaces, two clients** — IAM (SigV4/JSON) and Console (JWT/JSON), bundled in ProviderClients
+2. **DRY with pragmatism** — Helper methods where patterns are identical; separate when abstraction adds complexity
+3. **Context-first** — All public methods accept context for cancellation, timeouts, and logging
+4. **Constants over magic values** — No hardcoded strings
+5. **Atomic Create** — Save state before key generation to prevent orphaned resources
+6. **RequiresReplace everywhere** — All mutable fields force replacement since APIs don't support in-place updates
+7. **Consistent resource structure** — Every resource is model.go + resource.go in its own package
+8. **Sensitive field preservation** — UseStateForUnknown + state-only reads prevent false drift on credentials
 
 Design Philosophy:
 
-"Make it work, make it right, make it fast"
-
-We prioritize:
-1. Correctness (does it work?)
-2. Maintainability (can we fix/extend it easily?)
-3. Performance (is it fast enough?)
-
-In that order.
-
-Final Notes:
-
-This architecture balances:
-- Simplicity vs DRY: Simple wins when DRY adds complexity
-- Abstraction vs Clarity: Clarity wins when abstraction obscures
-- Features vs Complexity: Only add what's needed
+> "Make it work, make it right, make it fast" — in that order.
 
 The goal is code that a new developer can understand in 30 minutes and confidently modify.
 
 ---
 
-Document Version: 1.0
-Last Updated: 2024-01-13
-Author: Technical Architecture Team
+Document Version: 2.0
+Last Updated: 2026-04-11
 Status: Living Document (update as architecture evolves)
-

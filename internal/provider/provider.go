@@ -9,17 +9,24 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/resources/account"
+	accountaccesskey "github.com/scality/terraform-provider-scality/internal/resources/account_access_key"
+	consoleaccount "github.com/scality/terraform-provider-scality/internal/resources/console_account"
+	"github.com/scality/terraform-provider-scality/internal/resources/group"
+	groupmembership "github.com/scality/terraform-provider-scality/internal/resources/group_membership"
+	"github.com/scality/terraform-provider-scality/internal/resources/user"
+	useraccesskey "github.com/scality/terraform-provider-scality/internal/resources/user_access_key"
+	userpolicy "github.com/scality/terraform-provider-scality/internal/resources/user_policy"
 )
 
-// Ensure ScalityProvider satisfies various provider interfaces
 var _ provider.Provider = &ScalityProvider{}
 
-// ScalityProvider defines the provider implementation
 type ScalityProvider struct {
 	version string
 }
 
-// ScalityProviderModel describes the provider data model
 type ScalityProviderModel struct {
 	Endpoint           types.String `tfsdk:"endpoint"`
 	AccessKey          types.String `tfsdk:"access_key"`
@@ -83,8 +90,6 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	// Priority: configuration > environment variables
-	// IAM API credentials
 	endpoint := config.Endpoint.ValueString()
 	if endpoint == "" {
 		endpoint = os.Getenv("SCALITY_ENDPOINT")
@@ -100,7 +105,6 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		secretKey = os.Getenv("SCALITY_SECRET_KEY")
 	}
 
-	// Console API credentials
 	consoleEndpoint := config.ConsoleEndpoint.ValueString()
 	if consoleEndpoint == "" {
 		consoleEndpoint = os.Getenv("SCALITY_CONSOLE_ENDPOINT")
@@ -116,7 +120,6 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		consolePassword = os.Getenv("SCALITY_CONSOLE_PASSWORD")
 	}
 
-	// TLS configuration - default to false (secure by default)
 	insecureSkipVerify := false
 	if !config.InsecureSkipVerify.IsNull() {
 		insecureSkipVerify = config.InsecureSkipVerify.ValueBool()
@@ -124,53 +127,55 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		insecureSkipVerify = envVal == "true" || envVal == "1"
 	}
 
-	// Validate that at least one set of credentials is configured
-	hasIAMConfig := endpoint != "" && accessKey != "" && secretKey != ""
+	hasIAMAdminConfig := endpoint != "" && accessKey != "" && secretKey != ""
+	hasIAMEndpoint := endpoint != ""
 	hasConsoleConfig := consoleEndpoint != "" && consoleUsername != "" && consolePassword != ""
 
-	if !hasIAMConfig && !hasConsoleConfig {
+	if !hasIAMEndpoint && !hasConsoleConfig {
 		resp.Diagnostics.AddError(
 			"Missing Configuration",
-			"The provider requires either IAM API credentials (endpoint, access_key, secret_key) "+
+			"The provider requires at least an IAM endpoint (for per-account resources) "+
 				"or Console API credentials (console_endpoint, console_username, console_password) to be configured. "+
+				"For admin-level account operations, also provide access_key and secret_key. "+
 				"Set the credentials in the provider configuration or use the corresponding environment variables.",
 		)
 		return
 	}
 
-	// Create clients based on available credentials
-	var iamClient *ScalityClient
-	var consoleClient *ConsoleClient
+	var iamClient *client.IAMClient
+	var consoleClient *client.ConsoleClient
 
-	if hasIAMConfig {
-		iamClient = NewScalityClient(endpoint, accessKey, secretKey, insecureSkipVerify)
+	if hasIAMEndpoint {
+		if hasIAMAdminConfig {
+			iamClient = client.NewIAMClient(endpoint, accessKey, secretKey, insecureSkipVerify)
+		} else {
+			iamClient = client.NewIAMClient(endpoint, "", "", insecureSkipVerify)
+		}
 	}
 
 	if hasConsoleConfig {
-		consoleClient = NewConsoleClient(consoleEndpoint, consoleUsername, consolePassword, insecureSkipVerify)
+		consoleClient = client.NewConsoleClient(consoleEndpoint, consoleUsername, consolePassword, insecureSkipVerify)
 	}
 
-	// Store both clients in a wrapper struct
-	clientData := &ProviderClients{
-		IAMClient:     iamClient,
-		ConsoleClient: consoleClient,
+	clientData := &client.ProviderClients{
+		IAM:     iamClient,
+		Console: consoleClient,
 	}
 
-	// Make clients available to resources and data sources
 	resp.DataSourceData = clientData
 	resp.ResourceData = clientData
 }
 
-// ProviderClients holds both IAM and Console clients
-type ProviderClients struct {
-	IAMClient     *ScalityClient
-	ConsoleClient *ConsoleClient
-}
-
 func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewAccountResource,
-		NewConsoleAccountResource,
+		account.NewAccountResource,
+		consoleaccount.NewConsoleAccountResource,
+		accountaccesskey.NewAccountAccessKeyResource,
+		user.NewUserResource,
+		useraccesskey.NewUserAccessKeyResource,
+		userpolicy.NewUserPolicyResource,
+		group.NewGroupResource,
+		groupmembership.NewGroupMembershipResource,
 	}
 }
 

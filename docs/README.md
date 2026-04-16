@@ -14,6 +14,13 @@ Terraform/OpenTofu provider for managing Scality accounts. Supports both IAM-sty
   - Delete accounts with comprehensive error handling
   - Automatic credential generation
 
+### IAM Access Key Management
+
+- [scality_account_access_key](scality_account_access_key.md) - Manage additional S3 access keys
+  - Key rotation without recreating accounts
+  - Multiple keys per account for different environments
+  - Zero-downtime credential rotation
+
 ### Console API Resources (JWT Authentication)
 
 - [scality_console_account](scality_console_account.md) - Manage Scality accounts via Console API
@@ -117,6 +124,11 @@ output "access_key" {
   - Persistent S3 keys
   - Token caching
   - Two-step deletion
+
+- [scality_account_access_key](scality_account_access_key.md) - Additional S3 access keys (IAM API)
+  - Key rotation strategies
+  - Multiple keys per account
+  - Zero-downtime rotation
 
 ### Additional Resources
 - [Examples](EXAMPLES.md) - Common patterns and advanced use cases

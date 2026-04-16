@@ -92,12 +92,12 @@ resource "scality_account" "integrated" {
 ### Required Arguments
 
 - `name` (String, Required, Forces new resource) - Name of the account. Changing this forces a new resource to be created.
-- `email_address` (String, Required) - Email address for the account. Must be a valid email format.
+- `email_address` (String, Required, Forces new resource) - Email address for the account. Changing this forces a new resource to be created.
 
 ### Optional Arguments
 
-- `quota_max` (Number, Optional, Default: 0) - Maximum amount of bytes storable by the account. `0` means unlimited.
-- `external_account_id` (String, Optional) - External account ID for integration with other systems.
+- `quota_max` (Number, Optional, Default: 0, Forces new resource) - Maximum amount of bytes storable by the account. `0` means unlimited. Changing this forces a new resource to be created.
+- `external_account_id` (String, Optional, Forces new resource) - External account ID for integration with other systems. Changing this forces a new resource to be created.
 
 ## Attribute Reference
 
@@ -333,30 +333,25 @@ resource "scality_account" "example" {
 On `terraform apply`:
 1. Provider signs request with admin credentials (AWS Signature V4)
 2. Creates account via IAM API
-3. Automatically generates S3 access keys
-4. Returns account details and credentials in state
+3. Saves account to state immediately (so it can be tracked even if subsequent steps fail)
+4. Generates S3 access keys
+5. Updates state with credentials
+
+If access key generation fails, the account is still tracked in state and can be destroyed or re-applied. Use `scality_account_access_key` to generate keys separately if needed.
 
 ### Updates
 
-Changing the `email_address` or `quota_max` attributes triggers an update:
+All attribute changes force resource replacement (destroy + recreate). The Scality IAM API does not support in-place updates. Changing any attribute (`name`, `email_address`, `quota_max`, `external_account_id`) will destroy the existing account and create a new one:
+
 ```hcl
 resource "scality_account" "example" {
   name          = "myapp"
-  email_address = "newemail@example.com"  # Updated
-  quota_max     = 20000000000              # Updated
+  email_address = "newemail@example.com"  # Changed - will force replacement
+  quota_max     = 20000000000              # Changed - will force replacement
 }
 ```
 
-Note: IAM API update support may be limited. Check API documentation for update capabilities. Some changes may require replacement.
-
-Changing `name` forces replacement (new account created, old account destroyed):
-```hcl
-resource "scality_account" "example" {
-  name          = "myapp-v2"  # Changed - will force replacement
-  email_address = "myapp@example.com"
-  quota_max     = 10000000000
-}
-```
+**Warning**: Replacement destroys the existing account and its credentials. Ensure dependent resources are updated accordingly.
 
 ### Deletion
 
