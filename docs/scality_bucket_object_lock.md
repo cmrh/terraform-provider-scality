@@ -5,6 +5,14 @@ Configures default object lock retention for an S3 bucket. Prevents objects from
 ## Example
 
 ```hcl
+resource "scality_bucket" "immutable" {
+  account_access_key  = local.ak
+  account_secret_key  = local.sk
+  bucket              = "compliance-data"
+  object_lock_enabled = true
+  versioning          = true
+}
+
 resource "scality_bucket_object_lock" "compliance" {
   account_access_key = local.ak
   account_secret_key = local.sk
@@ -29,14 +37,15 @@ resource "scality_bucket_object_lock" "compliance" {
 
 | Mode | Description |
 |------|-------------|
-| `GOVERNANCE` | Users with special permissions can override or delete locks. |
-| `COMPLIANCE` | No one can override or delete locks, including the root account. |
+| `GOVERNANCE` | Users with special permissions (`s3:BypassGovernanceRetention`) can override or delete locks. |
+| `COMPLIANCE` | No one can override or delete locks, including the root account. Objects cannot be deleted until the retention period expires. |
 
 ## Prerequisites
 
-The bucket must be created with object lock enabled. Object lock can only be enabled at bucket creation time -- it cannot be added to an existing bucket.
+The bucket must be created with `object_lock_enabled = true`. Object lock can only be enabled at bucket creation time -- it cannot be added to an existing bucket. When object lock is enabled, S3 automatically enables versioning.
 
 ## Notes
 
 - Specify either `retention_days` or `retention_years`, not both.
 - Deleting this resource removes the default retention configuration but does not disable object lock on the bucket (object lock cannot be disabled once enabled).
+- Objects already locked retain their individual lock settings regardless of changes to the default configuration.

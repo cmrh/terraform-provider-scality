@@ -57,6 +57,10 @@ func (r *BucketReplicationResource) Schema(ctx context.Context, req resource.Sch
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"status": schema.StringAttribute{
 							Required: true,
@@ -164,6 +168,13 @@ func (r *BucketReplicationResource) Create(ctx context.Context, req resource.Cre
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket replication: %s", err))
 		return
 	}
+
+	_, rules, err := r.client.GetBucketReplication(ctx, ak, sk, bucket)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read back bucket replication after create: %s", err))
+		return
+	}
+	data.Rules = clientRulesToModel(rules)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

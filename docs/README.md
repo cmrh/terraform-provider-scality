@@ -58,6 +58,9 @@ You only need to configure the APIs you use. An IAM endpoint alone is sufficient
 | [scality_user_policy](scality_user_policy.md) | Inline policy attached to a user |
 | [scality_group](scality_group.md) | IAM group |
 | [scality_group_membership](scality_group_membership.md) | Group membership (users in a group) |
+| [scality_iam_policy](scality_iam_policy.md) | IAM managed policy (attachable to roles) |
+| [scality_iam_role](scality_iam_role.md) | IAM role with trust policy |
+| [scality_iam_role_policy_attachment](scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
 
 ## Credential Pattern
 
