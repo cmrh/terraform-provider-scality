@@ -5,8 +5,15 @@ import (
 	"fmt"
 )
 
-func (c *S3Client) CreateBucket(ctx context.Context, accessKey, secretKey, bucket string) error {
-	body, statusCode, err := c.doRequest(ctx, "PUT", accessKey, secretKey, bucket, "", nil, nil)
+func (c *S3Client) CreateBucket(ctx context.Context, accessKey, secretKey, bucket string, objectLockEnabled bool) error {
+	var extraHeaders map[string]string
+	if objectLockEnabled {
+		extraHeaders = map[string]string{
+			"x-amz-bucket-object-lock-enabled": "true",
+		}
+	}
+
+	body, statusCode, err := c.doRequest(ctx, "PUT", accessKey, secretKey, bucket, "", nil, extraHeaders)
 	if err != nil {
 		return fmt.Errorf("create bucket: %w", err)
 	}

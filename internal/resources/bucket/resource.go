@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -50,6 +51,13 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"object_lock_enabled": schema.BoolAttribute{
+				MarkdownDescription: "Enable Object Lock on the bucket. Can only be set at creation time.",
+				Optional:            true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"versioning": schema.BoolAttribute{
@@ -106,12 +114,14 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		"bucket": bucket,
 	})
 
-	if err := r.client.CreateBucket(ctx, ak, sk, bucket); err != nil {
+	objectLockEnabled := !data.ObjectLockEnabled.IsNull() && data.ObjectLockEnabled.ValueBool()
+
+	if err := r.client.CreateBucket(ctx, ak, sk, bucket, objectLockEnabled); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket: %s", err))
 		return
 	}
 
-	if !data.Versioning.IsNull() {
+	if !data.Versioning.IsNull() && !objectLockEnabled {
 		status := "Suspended"
 		if data.Versioning.ValueBool() {
 			status = "Enabled"
