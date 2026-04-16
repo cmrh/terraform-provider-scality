@@ -13,6 +13,7 @@ import (
 	"github.com/scality/terraform-provider-scality/internal/client"
 	"github.com/scality/terraform-provider-scality/internal/resources/account"
 	accountaccesskey "github.com/scality/terraform-provider-scality/internal/resources/account_access_key"
+	"github.com/scality/terraform-provider-scality/internal/resources/bucket"
 	consoleaccount "github.com/scality/terraform-provider-scality/internal/resources/console_account"
 	"github.com/scality/terraform-provider-scality/internal/resources/group"
 	groupmembership "github.com/scality/terraform-provider-scality/internal/resources/group_membership"
@@ -144,6 +145,7 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	var iamClient *client.IAMClient
 	var consoleClient *client.ConsoleClient
+	var s3Client *client.S3Client
 
 	if hasIAMEndpoint {
 		if hasIAMAdminConfig {
@@ -151,6 +153,7 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		} else {
 			iamClient = client.NewIAMClient(endpoint, "", "", insecureSkipVerify)
 		}
+		s3Client = client.NewS3Client(endpoint, insecureSkipVerify)
 	}
 
 	if hasConsoleConfig {
@@ -160,6 +163,7 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 	clientData := &client.ProviderClients{
 		IAM:     iamClient,
 		Console: consoleClient,
+		S3:      s3Client,
 	}
 
 	resp.DataSourceData = clientData
@@ -171,6 +175,7 @@ func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resou
 		account.NewAccountResource,
 		consoleaccount.NewConsoleAccountResource,
 		accountaccesskey.NewAccountAccessKeyResource,
+		bucket.NewBucketResource,
 		user.NewUserResource,
 		useraccesskey.NewUserAccessKeyResource,
 		userpolicy.NewUserPolicyResource,
