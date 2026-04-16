@@ -293,21 +293,25 @@ resource "scality_account" "accounts" {
 terraform import scality_account.existing existing-account-name
 ```
 
-### Updating Account Email
+### Changing Account Attributes
+
+All attribute changes force resource replacement (destroy + recreate). For example, changing the email:
 
 ```hcl
 resource "scality_account" "my_account" {
   name          = "my-account"
-  email_address = "new-email@example.com"  # Changed
+  email_address = "new-email@example.com"  # Changed - forces replacement
   quota_max     = 1000000000
 }
 ```
 
 Then:
 ```bash
-terraform plan
+terraform plan   # Shows: destroy + create
 terraform apply
 ```
+
+**Note**: This will destroy and recreate the account, generating new S3 credentials.
 
 ## Troubleshooting
 

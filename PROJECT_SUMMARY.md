@@ -16,10 +16,23 @@ terraform-provider-scality/
 ├── README.md                        # Comprehensive documentation
 ├── QUICKSTART.md                    # Getting started guide
 ├── .gitignore                       # Git ignore rules
-├── internal/provider/
-│   ├── provider.go                  # Provider configuration
-│   ├── client.go                    # Scality API client with AWS v4 signing
-│   └── resource_account.go          # Account resource implementation
+├── internal/
+│   ├── client/
+│   │   ├── provider_clients.go      # ProviderClients bundle
+│   │   ├── iam.go                   # IAM API client with AWS v4 signing
+│   │   └── console.go              # Console API client with JWT auth
+│   ├── provider/
+│   │   └── provider.go              # Provider configuration & resource registration
+│   └── resources/
+│       ├── account/
+│       │   ├── model.go             # IAM account data model
+│       │   └── resource.go          # IAM account CRUD
+│       ├── console_account/
+│       │   ├── model.go             # Console account data model
+│       │   └── resource.go          # Console account CRUD
+│       └── account_access_key/
+│           ├── model.go             # Access key data model
+│           └── resource.go          # Access key CRUD (key rotation)
 └── examples/
     ├── main.tf                      # Basic usage example
     └── multiple-accounts.tf         # Advanced multi-account example
@@ -38,16 +51,30 @@ terraform-provider-scality/
 - API methods:
   - `CreateAccount()` - Create new account
   - `GenerateAccountAccessKey()` - Generate S3 credentials
+  - `DeleteAccessKey()` - Delete an access key
   - `GetAccount()` - Retrieve account (for drift detection)
   - `DeleteAccount()` - Delete account
 
 ### 3. Account Resource (`resource_account.go`)
 Full CRUD implementation:
-- Create: Creates account + generates access keys automatically
+- Create: Creates account + generates access keys automatically (state saved before key gen for atomicity)
 - Read: Checks if account exists (drift detection)
-- Update: Updates account properties
+- Update: All attribute changes force resource replacement (no in-place updates)
 - Delete: Deletes account with comprehensive error handling
 - Import: Import existing accounts into state
+
+### 4. Console Account Resource (`resource_console_account.go`)
+- Create: Creates account via Console API with optional password generation
+- Read: Drift detection via typed Console API responses
+- Update: All attribute changes force resource replacement
+- Delete: Two-step deletion (account + user)
+- Import: Import existing accounts by name
+
+### 5. Access Key Resource (`resource_account_access_key.go`)
+- Create: Generates additional S3 access keys for an account
+- Read: Preserves state (API cannot return secrets after creation)
+- Delete: Deletes access key via IAM API
+- Import: Composite format `account_name/access_key_id`
 
 ### 4. **Resource Schema**
 ```hcl
@@ -207,9 +234,16 @@ Important: Protect the state file as it contains sensitive credentials.
 |------|---------|
 | `main.go` | Provider entry point |
 | `go.mod` | Go dependencies |
-| `internal/provider/provider.go` | Provider config |
-| `internal/provider/client.go` | API client |
-| `internal/provider/resource_account.go` | Account resource |
+| `internal/client/provider_clients.go` | Client bundle |
+| `internal/client/iam.go` | IAM API client (SigV4) |
+| `internal/client/console.go` | Console API client (JWT) |
+| `internal/provider/provider.go` | Provider config & registration |
+| `internal/resources/account/model.go` | IAM account model |
+| `internal/resources/account/resource.go` | IAM account CRUD |
+| `internal/resources/console_account/model.go` | Console account model |
+| `internal/resources/console_account/resource.go` | Console account CRUD |
+| `internal/resources/account_access_key/model.go` | Access key model |
+| `internal/resources/account_access_key/resource.go` | Access key CRUD |
 | `examples/main.tf` | Basic example |
 | `examples/multiple-accounts.tf` | Advanced example |
 | `README.md` | Full documentation |

@@ -1,9 +1,10 @@
-package provider
+package account
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -12,34 +13,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+
+	"github.com/scality/terraform-provider-scality/internal/client"
 )
 
-// Ensure provider defined types fully satisfy framework interfaces
 var _ resource.Resource = &AccountResource{}
 var _ resource.ResourceWithImportState = &AccountResource{}
 
+type AccountResource struct {
+	client *client.IAMClient
+}
+
 func NewAccountResource() resource.Resource {
 	return &AccountResource{}
-}
-
-// AccountResource defines the resource implementation
-type AccountResource struct {
-	client *ScalityClient
-}
-
-// AccountResourceModel describes the resource data model
-type AccountResourceModel struct {
-	ID                types.String `tfsdk:"id"`
-	Name              types.String `tfsdk:"name"`
-	EmailAddress      types.String `tfsdk:"email_address"`
-	QuotaMax          types.Int64  `tfsdk:"quota_max"`
-	ExternalAccountID types.String `tfsdk:"external_account_id"`
-	CustomAttributes  types.Map    `tfsdk:"custom_attributes"`
-	ARN               types.String `tfsdk:"arn"`
-	CanonicalID       types.String `tfsdk:"canonical_id"`
-	CreateDate        types.String `tfsdk:"create_date"`
-	AccessKey         types.String `tfsdk:"access_key"`
-	SecretKey         types.String `tfsdk:"secret_key"`
 }
 
 func (r *AccountResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -68,46 +54,66 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"email_address": schema.StringAttribute{
 				MarkdownDescription: "Email address for the account",
 				Required:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"quota_max": schema.Int64Attribute{
 				MarkdownDescription: "Maximum amount of bytes storable by the account (0 = unlimited)",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
+					int64planmodifier.RequiresReplace(),
 				},
 			},
 			"external_account_id": schema.StringAttribute{
 				MarkdownDescription: "External account ID for integration with other systems",
 				Optional:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"custom_attributes": schema.MapAttribute{
-				MarkdownDescription: "Custom key-value attributes for the account (max 10 attributes)",
-				ElementType:         types.StringType,
+				MarkdownDescription: "Custom attributes for the account (key-value string pairs, max 10)",
 				Optional:            true,
-				Computed:            true,
+				ElementType:         types.StringType,
 			},
 			"arn": schema.StringAttribute{
 				MarkdownDescription: "Amazon Resource Name (ARN) of the account",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"canonical_id": schema.StringAttribute{
 				MarkdownDescription: "Canonical ID of the account",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"create_date": schema.StringAttribute{
 				MarkdownDescription: "Account creation date",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"access_key": schema.StringAttribute{
 				MarkdownDescription: "S3 API access key (generated automatically)",
 				Computed:            true,
 				Sensitive:           true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"secret_key": schema.StringAttribute{
 				MarkdownDescription: "S3 API secret key (generated automatically)",
 				Computed:            true,
 				Sensitive:           true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -118,24 +124,24 @@ func (r *AccountResource) Configure(ctx context.Context, req resource.ConfigureR
 		return
 	}
 
-	clients, ok := req.ProviderData.(*ProviderClients)
+	clients, ok := req.ProviderData.(*client.ProviderClients)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *ProviderClients, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *client.ProviderClients, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	if clients.IAMClient == nil {
+	if clients.IAM == nil || clients.IAM.AccessKey == "" {
 		resp.Diagnostics.AddError(
-			"Missing IAM Client Configuration",
-			"IAM API credentials (endpoint, access_key, secret_key) must be configured to use scality_account resource.",
+			"Missing IAM Admin Credentials",
+			"IAM API admin credentials (endpoint, access_key, secret_key) must all be configured to use scality_account resource.",
 		)
 		return
 	}
 
-	r.client = clients.IAMClient
+	r.client = clients.IAM
 }
 
 func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -150,8 +156,7 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 		"name": data.Name.ValueString(),
 	})
 
-	// Create account
-	createReq := AccountCreateRequest{
+	createReq := client.AccountCreateRequest{
 		Name:              data.Name.ValueString(),
 		EmailAddress:      data.EmailAddress.ValueString(),
 		QuotaMax:          data.QuotaMax.ValueInt64(),
@@ -164,56 +169,43 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	// Generate access key
+	data.ID = types.StringValue(account.Account.Data.ID)
+	data.ARN = types.StringValue(account.Account.Data.ARN)
+	data.CanonicalID = types.StringValue(account.Account.Data.CanonicalID)
+	data.CreateDate = types.StringValue(account.Account.Data.CreateDate)
+
+	if data.QuotaMax.IsNull() || data.QuotaMax.IsUnknown() {
+		data.QuotaMax = types.Int64Value(account.Account.Data.QuotaMax)
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+
 	tflog.Debug(ctx, "Generating access key for account", map[string]interface{}{
 		"name": data.Name.ValueString(),
 	})
 
 	accessKey, err := r.client.GenerateAccountAccessKey(ctx, data.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to generate access key: %s", err))
+		resp.Diagnostics.AddError("Client Error",
+			fmt.Sprintf("Account created successfully but access key generation failed. "+
+				"The account exists and is tracked in state. Run apply again or use "+
+				"scality_account_access_key to generate keys separately: %s", err))
 		return
 	}
 
-	// Update model with response data
-	data.ID = types.StringValue(account.Account.Data.ID)
-	data.ARN = types.StringValue(account.Account.Data.ARN)
-	data.CanonicalID = types.StringValue(account.Account.Data.CanonicalID)
-	data.CreateDate = types.StringValue(account.Account.Data.CreateDate)
 	data.AccessKey = types.StringValue(accessKey.Data.ID)
 	data.SecretKey = types.StringValue(accessKey.Data.Value)
 
-	// Set default quota if not specified
-	if data.QuotaMax.IsNull() || data.QuotaMax.IsUnknown() {
-		data.QuotaMax = types.Int64Value(account.Account.Data.QuotaMax)
-	}
-
-	// Set custom attributes if specified
-	if !data.CustomAttributes.IsNull() && !data.CustomAttributes.IsUnknown() {
+	if !data.CustomAttributes.IsNull() && !data.CustomAttributes.IsUnknown() && len(data.CustomAttributes.Elements()) > 0 {
 		attrs := make(map[string]string)
-		diags := data.CustomAttributes.ElementsAs(ctx, &attrs, false)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-			return
+		for k, v := range data.CustomAttributes.Elements() {
+			attrs[k] = v.(types.String).ValueString()
 		}
 
-		if len(attrs) > 0 {
-			tflog.Debug(ctx, "Setting custom attributes for account", map[string]interface{}{
-				"name":       data.Name.ValueString(),
-				"attributes": attrs,
-			})
-
-			// Convert to map[string]interface{} for JSON marshaling
-			attrsInterface := make(map[string]interface{})
-			for k, v := range attrs {
-				attrsInterface[k] = v
-			}
-
-			err = r.client.UpdateAccountAttributes(ctx, data.Name.ValueString(), attrsInterface)
-			if err != nil {
-				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set custom attributes: %s", err))
-				return
-			}
+		if err := r.client.UpdateAccountAttributes(ctx, data.Name.ValueString(), attrs); err != nil {
+			resp.Diagnostics.AddError("Client Error",
+				fmt.Sprintf("Account created but setting custom attributes failed: %s", err))
+			return
 		}
 	}
 
@@ -234,20 +226,17 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 		"name": data.Name.ValueString(),
 	})
 
-	// Get account details
 	account, err := r.client.GetAccount(ctx, data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read account: %s", err))
 		return
 	}
 
-	// Account was deleted outside Terraform
 	if account == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	// Update state with refreshed data
 	data.ID = types.StringValue(account.ID)
 	data.ARN = types.StringValue(account.ARN)
 	data.CanonicalID = types.StringValue(account.CanonicalID)
@@ -255,99 +244,48 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 	data.QuotaMax = types.Int64Value(account.QuotaMax)
 	data.EmailAddress = types.StringValue(account.EmailAddress)
 
-	// Update custom attributes
-	if account.CustomAttributes != nil && len(account.CustomAttributes) > 0 {
-		attrs, diags := types.MapValueFrom(ctx, types.StringType, account.CustomAttributes)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-			return
+	if len(account.CustomAttributes) > 0 {
+		elements := make(map[string]attr.Value)
+		for k, v := range account.CustomAttributes {
+			elements[k] = types.StringValue(v)
 		}
-		data.CustomAttributes = attrs
-	} else {
-		data.CustomAttributes = types.MapNull(types.StringType)
+		data.CustomAttributes = types.MapValueMust(types.StringType, elements)
+	} else if !data.CustomAttributes.IsNull() {
+		data.CustomAttributes = types.MapValueMust(types.StringType, map[string]attr.Value{})
 	}
-
-	// Keep access key and secret key from state (they can't be retrieved)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state AccountResourceModel
+	var state AccountResourceModel
+	var plan AccountResourceModel
 
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	tflog.Debug(ctx, "Updating Scality account", map[string]interface{}{
-		"name": plan.Name.ValueString(),
+	attrs := make(map[string]string)
+	if !plan.CustomAttributes.IsNull() && !plan.CustomAttributes.IsUnknown() {
+		for k, v := range plan.CustomAttributes.Elements() {
+			attrs[k] = v.(types.String).ValueString()
+		}
+	}
+
+	tflog.Debug(ctx, "Updating account custom attributes", map[string]interface{}{
+		"name": state.Name.ValueString(),
 	})
 
-	// Update quota if changed
-	if !plan.QuotaMax.Equal(state.QuotaMax) {
-		tflog.Info(ctx, "Updating account quota", map[string]interface{}{
-			"name":      plan.Name.ValueString(),
-			"old_quota": state.QuotaMax.ValueInt64(),
-			"new_quota": plan.QuotaMax.ValueInt64(),
-		})
-
-		err := r.client.UpdateAccountQuota(ctx, plan.Name.ValueString(), plan.QuotaMax.ValueInt64())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update account quota: %s", err))
-			return
-		}
+	if err := r.client.UpdateAccountAttributes(ctx, state.Name.ValueString(), attrs); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update account attributes: %s", err))
+		return
 	}
 
-	// Update custom attributes if changed
-	if !plan.CustomAttributes.Equal(state.CustomAttributes) {
-		attrs := make(map[string]string)
-		attrsInterface := make(map[string]interface{})
+	state.CustomAttributes = plan.CustomAttributes
 
-		if !plan.CustomAttributes.IsNull() && !plan.CustomAttributes.IsUnknown() {
-			diags := plan.CustomAttributes.ElementsAs(ctx, &attrs, false)
-			if diags.HasError() {
-				resp.Diagnostics.Append(diags...)
-				return
-			}
-
-			// Convert to map[string]interface{} for JSON marshaling
-			for k, v := range attrs {
-				attrsInterface[k] = v
-			}
-		}
-
-		tflog.Info(ctx, "Updating account custom attributes", map[string]interface{}{
-			"name":       plan.Name.ValueString(),
-			"attributes": attrsInterface,
-		})
-
-		err := r.client.UpdateAccountAttributes(ctx, plan.Name.ValueString(), attrsInterface)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update custom attributes: %s", err))
-			return
-		}
-	}
-
-	// Note: email_address changes are not supported by the API
-	if !plan.EmailAddress.Equal(state.EmailAddress) {
-		resp.Diagnostics.AddWarning(
-			"Email Address Update Not Supported",
-			"The Scality API does not support updating email addresses. The email address will remain unchanged.",
-		)
-		plan.EmailAddress = state.EmailAddress
-	}
-
-	// Preserve computed values from state
-	plan.ID = state.ID
-	plan.ARN = state.ARN
-	plan.CanonicalID = state.CanonicalID
-	plan.CreateDate = state.CreateDate
-	plan.AccessKey = state.AccessKey
-	plan.SecretKey = state.SecretKey
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *AccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

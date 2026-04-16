@@ -8,13 +8,15 @@ Manage Scality on-premises S3 storage accounts with OpenTofu/Terraform. Supports
 
 - **[scality_account](docs/scality_account.md)** - IAM API resource for account management
 - **[scality_console_account](docs/scality_console_account.md)** - Console API resource for account management
+- **[scality_account_access_key](docs/scality_account_access_key.md)** - Manage additional S3 access keys (key rotation)
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Step-by-step setup instructions
 
 ## Features
 
-**Two Resource Types:**
+**Three Resource Types:**
 - **scality_account** - IAM API with Signature V4 authentication
 - **scality_console_account** - Console API with JWT authentication
+- **scality_account_access_key** - Manage additional S3 access keys for key rotation
 
 **Core Capabilities:**
 - Automatic S3 credential generation
@@ -243,6 +245,20 @@ Manages accounts using the Console API with JWT authentication.
 
 [Full Documentation →](docs/scality_console_account.md)
 
+### scality_account_access_key
+
+Manages additional S3 API access keys for Scality accounts. Useful for key rotation.
+
+**Arguments:**
+- `account_name` (Required) - Name of the parent account
+
+**Exported Attributes:**
+- `id`, `access_key`, `secret_key` (sensitive), `status`, `create_date`
+
+**Import:** `terraform import scality_account_access_key.example account_name/access_key_id`
+
+[Full Documentation →](docs/scality_account_access_key.md)
+
 ## Examples
 
 ### Multiple Accounts with For-Each
@@ -297,6 +313,7 @@ terraform import scality_console_account.existing account-name
 ```bash
 terraform import scality_account.name account-name
 terraform import scality_console_account.name account-name
+terraform import scality_account_access_key.name account-name/access-key-id
 ```
 
 ## State Management
@@ -313,7 +330,7 @@ terraform import scality_console_account.name account-name
 
 ### IAM API Authentication
 - **Method**: Signature Version 4 (compatible with AWS SDKs)
-- **Endpoints**: CreateAccount, GenerateAccountAccessKey, GetAccount, DeleteAccount
+- **Endpoints**: CreateAccount, GenerateAccountAccessKey, DeleteAccessKey, GetAccount, DeleteAccount
 - **Signing**: AWS4-HMAC-SHA256 with `host`, `x-amz-content-sha256`, `x-amz-date` headers
 
 ### Console API Authentication
@@ -324,9 +341,9 @@ terraform import scality_console_account.name account-name
 
 ## Limitations
 
-- Credentials cannot be rotated (generate new account for rotation)
-- Account name changes force resource replacement
-- Some account updates may require replacement
+- All account attribute changes force resource replacement (the APIs do not support in-place updates)
+- S3 credentials generated during account creation cannot be retrieved after initial creation
+- Use `scality_account_access_key` for credential rotation without recreating accounts
 
 ## Development
 
