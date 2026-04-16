@@ -131,7 +131,16 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 	}
 
 	if len(body) > 0 {
-		httpReq.Header.Set("Content-Type", "application/xml")
+		hasContentType := false
+		for k := range extraHeaders {
+			if strings.EqualFold(k, "content-type") {
+				hasContentType = true
+				break
+			}
+		}
+		if !hasContentType {
+			httpReq.Header.Set("Content-Type", "application/xml")
+		}
 		md5Hash := md5.Sum(body)
 		httpReq.Header.Set("Content-MD5", base64.StdEncoding.EncodeToString(md5Hash[:]))
 	}
@@ -158,182 +167,4 @@ func (c *S3Client) formatS3Error(respBody []byte, statusCode int, operation stri
 		return fmt.Errorf("%s: %s: %s", operation, s3Err.Code, s3Err.Message)
 	}
 	return fmt.Errorf("%s failed (status %d): %s", operation, statusCode, string(respBody))
-}
-
-func (c *S3Client) CreateBucket(ctx context.Context, accessKey, secretKey, bucket string) error {
-	body, statusCode, err := c.doRequest(ctx, "PUT", accessKey, secretKey, bucket, "", nil, nil)
-	if err != nil {
-		return fmt.Errorf("create bucket: %w", err)
-	}
-
-	if statusCode == 409 {
-		return fmt.Errorf("bucket %q already exists", bucket)
-	}
-
-	if statusCode != 200 {
-		return c.formatS3Error(body, statusCode, "create bucket")
-	}
-
-	return nil
-}
-
-func (c *S3Client) HeadBucket(ctx context.Context, accessKey, secretKey, bucket string) (bool, error) {
-	_, statusCode, err := c.doRequest(ctx, "HEAD", accessKey, secretKey, bucket, "", nil, nil)
-	if err != nil {
-		return false, fmt.Errorf("head bucket: %w", err)
-	}
-
-	switch {
-	case statusCode == 200:
-		return true, nil
-	case statusCode == 404:
-		return false, nil
-	case statusCode == 403:
-		return false, fmt.Errorf("access denied to bucket %q", bucket)
-	default:
-		return false, fmt.Errorf("head bucket unexpected status %d", statusCode)
-	}
-}
-
-func (c *S3Client) DeleteBucket(ctx context.Context, accessKey, secretKey, bucket string) error {
-	body, statusCode, err := c.doRequest(ctx, "DELETE", accessKey, secretKey, bucket, "", nil, nil)
-	if err != nil {
-		return fmt.Errorf("delete bucket: %w", err)
-	}
-
-	if statusCode == 404 {
-		return nil
-	}
-
-	if statusCode != 204 {
-		return c.formatS3Error(body, statusCode, "delete bucket")
-	}
-
-	return nil
-}
-
-// --- Versioning ---
-
-type versioningConfiguration struct {
-	XMLName xml.Name `xml:"VersioningConfiguration"`
-	Status  string   `xml:"Status,omitempty"`
-}
-
-func (c *S3Client) GetBucketVersioning(ctx context.Context, accessKey, secretKey, bucket string) (string, error) {
-	body, statusCode, err := c.doRequest(ctx, "GET", accessKey, secretKey, bucket, "versioning", nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("get bucket versioning: %w", err)
-	}
-
-	if statusCode != 200 {
-		return "", c.formatS3Error(body, statusCode, "get bucket versioning")
-	}
-
-	var config versioningConfiguration
-	if err := xml.Unmarshal(body, &config); err != nil {
-		return "", fmt.Errorf("parsing versioning response: %w", err)
-	}
-
-	return config.Status, nil
-}
-
-func (c *S3Client) PutBucketVersioning(ctx context.Context, accessKey, secretKey, bucket, status string) error {
-	config := versioningConfiguration{Status: status}
-
-	xmlBody, err := xml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("marshaling versioning config: %w", err)
-	}
-
-	respBody, statusCode, err := c.doRequest(ctx, "PUT", accessKey, secretKey, bucket, "versioning", xmlBody, nil)
-	if err != nil {
-		return fmt.Errorf("put bucket versioning: %w", err)
-	}
-
-	if statusCode != 200 {
-		return c.formatS3Error(respBody, statusCode, "put bucket versioning")
-	}
-
-	return nil
-}
-
-// --- Tagging ---
-
-type tagging struct {
-	XMLName xml.Name `xml:"Tagging"`
-	TagSet  tagSet   `xml:"TagSet"`
-}
-
-type tagSet struct {
-	Tags []tag `xml:"Tag"`
-}
-
-type tag struct {
-	Key   string `xml:"Key"`
-	Value string `xml:"Value"`
-}
-
-func (c *S3Client) GetBucketTagging(ctx context.Context, accessKey, secretKey, bucket string) (map[string]string, error) {
-	body, statusCode, err := c.doRequest(ctx, "GET", accessKey, secretKey, bucket, "tagging", nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("get bucket tagging: %w", err)
-	}
-
-	if statusCode == 404 {
-		return nil, nil
-	}
-
-	if statusCode != 200 {
-		return nil, c.formatS3Error(body, statusCode, "get bucket tagging")
-	}
-
-	var result tagging
-	if err := xml.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("parsing tagging response: %w", err)
-	}
-
-	tags := make(map[string]string, len(result.TagSet.Tags))
-	for _, t := range result.TagSet.Tags {
-		tags[t.Key] = t.Value
-	}
-
-	return tags, nil
-}
-
-func (c *S3Client) PutBucketTagging(ctx context.Context, accessKey, secretKey, bucket string, tags map[string]string) error {
-	tagList := make([]tag, 0, len(tags))
-	for k, v := range tags {
-		tagList = append(tagList, tag{Key: k, Value: v})
-	}
-
-	t := tagging{TagSet: tagSet{Tags: tagList}}
-
-	xmlBody, err := xml.Marshal(t)
-	if err != nil {
-		return fmt.Errorf("marshaling tagging config: %w", err)
-	}
-
-	respBody, statusCode, err := c.doRequest(ctx, "PUT", accessKey, secretKey, bucket, "tagging", xmlBody, nil)
-	if err != nil {
-		return fmt.Errorf("put bucket tagging: %w", err)
-	}
-
-	if statusCode != 200 && statusCode != 204 {
-		return c.formatS3Error(respBody, statusCode, "put bucket tagging")
-	}
-
-	return nil
-}
-
-func (c *S3Client) DeleteBucketTagging(ctx context.Context, accessKey, secretKey, bucket string) error {
-	body, statusCode, err := c.doRequest(ctx, "DELETE", accessKey, secretKey, bucket, "tagging", nil, nil)
-	if err != nil {
-		return fmt.Errorf("delete bucket tagging: %w", err)
-	}
-
-	if statusCode != 204 && statusCode != 404 {
-		return c.formatS3Error(body, statusCode, "delete bucket tagging")
-	}
-
-	return nil
 }

@@ -1,0 +1,32 @@
+# scality_group_membership
+
+Manages the set of IAM users that belong to a group. This resource owns the full membership list -- users not listed will be removed from the group.
+
+## Example
+
+```hcl
+resource "scality_group_membership" "developers" {
+  account_access_key = local.ak
+  account_secret_key = local.sk
+  group_name         = scality_group.developers.group_name
+
+  users = [
+    scality_user.alice.username,
+    scality_user.bob.username,
+  ]
+}
+```
+
+## Argument Reference
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. Forces replacement. |
+| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. Forces replacement. |
+| `group_name` | String | Yes | Target group. Forces replacement. |
+| `users` | Set(String) | Yes | Complete set of usernames that should belong to the group. |
+
+## Notes
+
+- This resource is authoritative. It performs set-diff updates: users added to the list are added to the group, users removed from the list are removed from the group.
+- Only one `scality_group_membership` resource should exist per group.

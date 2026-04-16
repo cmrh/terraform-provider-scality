@@ -14,6 +14,12 @@ import (
 	"github.com/scality/terraform-provider-scality/internal/resources/account"
 	accountaccesskey "github.com/scality/terraform-provider-scality/internal/resources/account_access_key"
 	"github.com/scality/terraform-provider-scality/internal/resources/bucket"
+	bucketacl "github.com/scality/terraform-provider-scality/internal/resources/bucket_acl"
+	bucketencryption "github.com/scality/terraform-provider-scality/internal/resources/bucket_encryption"
+	bucketlifecycle "github.com/scality/terraform-provider-scality/internal/resources/bucket_lifecycle"
+	bucketobjectlock "github.com/scality/terraform-provider-scality/internal/resources/bucket_object_lock"
+	bucketpolicy "github.com/scality/terraform-provider-scality/internal/resources/bucket_policy"
+	bucketreplication "github.com/scality/terraform-provider-scality/internal/resources/bucket_replication"
 	consoleaccount "github.com/scality/terraform-provider-scality/internal/resources/console_account"
 	"github.com/scality/terraform-provider-scality/internal/resources/group"
 	groupmembership "github.com/scality/terraform-provider-scality/internal/resources/group_membership"
@@ -176,6 +182,12 @@ func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resou
 		consoleaccount.NewConsoleAccountResource,
 		accountaccesskey.NewAccountAccessKeyResource,
 		bucket.NewBucketResource,
+		bucketacl.NewBucketACLResource,
+		bucketencryption.NewBucketEncryptionResource,
+		bucketlifecycle.NewBucketLifecycleResource,
+		bucketobjectlock.NewBucketObjectLockResource,
+		bucketpolicy.NewBucketPolicyResource,
+		bucketreplication.NewBucketReplicationResource,
 		user.NewUserResource,
 		useraccesskey.NewUserAccessKeyResource,
 		userpolicy.NewUserPolicyResource,
