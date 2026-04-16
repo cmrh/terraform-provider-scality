@@ -72,7 +72,7 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 	payloadHash := sha256Hex(body)
 
 	headerMap := map[string]string{
-		"host":                  host,
+		"host":                 host,
 		"x-amz-content-sha256": payloadHash,
 		"x-amz-date":           amzdate,
 	}
