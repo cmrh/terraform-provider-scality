@@ -94,3 +94,19 @@ resource "scality_bucket" "data" {
 ```
 
 The initial credentials from account creation may be rotated externally. The second key pair created via `scality_account_access_key` gives Terraform a stable credential that external processes will not touch.
+
+## Credential Dependencies
+
+When using IAM user credentials for resources like buckets, encryption, or replication, always declare a `depends_on` pointing at the user's access policy. This ensures Terraform destroys resources in the correct order — removing buckets and other resources before the policy that grants permission to manage them.
+
+```hcl
+resource "scality_bucket" "data" {
+  account_access_key = scality_user_access_key.operator.access_key_id
+  account_secret_key = scality_user_access_key.operator.secret_access_key
+  bucket             = "my-data"
+
+  depends_on = [scality_user_policy.operator]
+}
+```
+
+Without this, `terraform destroy` may remove the user's policy first, leaving Terraform unable to delete the remaining resources.
