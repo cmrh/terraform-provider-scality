@@ -72,7 +72,7 @@ func TestGetObjectLockConfiguration_Success(t *testing.T) {
 			t.Errorf("expected query to contain object-lock, got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -101,7 +101,7 @@ func TestGetObjectLockConfiguration_Success(t *testing.T) {
 func TestGetObjectLockConfiguration_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(`<Error><Code>ObjectLockConfigurationNotFoundError</Code><Message>Object Lock configuration does not exist for this bucket</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>ObjectLockConfigurationNotFoundError</Code><Message>Object Lock configuration does not exist for this bucket</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -120,7 +120,7 @@ func TestGetObjectLockConfiguration_WithoutRule(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -151,7 +151,7 @@ func TestGetObjectLockConfiguration_WithYears(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 

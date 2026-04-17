@@ -24,7 +24,7 @@ func TestCreateManagedPolicy(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<CreatePolicyResponse><CreatePolicyResult><Policy><PolicyName>test-policy</PolicyName><PolicyId>ANPATEST123</PolicyId><Arn>arn:aws:iam::123:policy/test-policy</Arn><Path>/</Path><DefaultVersionId>v1</DefaultVersionId><AttachmentCount>0</AttachmentCount></Policy></CreatePolicyResult></CreatePolicyResponse>`))
+		_, _ = w.Write([]byte(`<CreatePolicyResponse><CreatePolicyResult><Policy><PolicyName>test-policy</PolicyName><PolicyId>ANPATEST123</PolicyId><Arn>arn:aws:iam::123:policy/test-policy</Arn><Path>/</Path><DefaultVersionId>v1</DefaultVersionId><AttachmentCount>0</AttachmentCount></Policy></CreatePolicyResult></CreatePolicyResponse>`))
 	}))
 	defer server.Close()
 
@@ -70,7 +70,7 @@ func TestGetManagedPolicy(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<GetPolicyResponse><GetPolicyResult><Policy><PolicyName>test-policy</PolicyName><PolicyId>ANPATEST123</PolicyId><Arn>arn:aws:iam::123:policy/test-policy</Arn><Path>/</Path><DefaultVersionId>v1</DefaultVersionId><AttachmentCount>2</AttachmentCount></Policy></GetPolicyResult></GetPolicyResponse>`))
+		_, _ = w.Write([]byte(`<GetPolicyResponse><GetPolicyResult><Policy><PolicyName>test-policy</PolicyName><PolicyId>ANPATEST123</PolicyId><Arn>arn:aws:iam::123:policy/test-policy</Arn><Path>/</Path><DefaultVersionId>v1</DefaultVersionId><AttachmentCount>2</AttachmentCount></Policy></GetPolicyResult></GetPolicyResponse>`))
 	}))
 	defer server.Close()
 
@@ -99,7 +99,7 @@ func TestGetManagedPolicy(t *testing.T) {
 func TestGetManagedPolicy_NoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>Policy arn:aws:iam::123:policy/test-policy was not found.</Message></Error></ErrorResponse>`))
+		_, _ = w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>Policy arn:aws:iam::123:policy/test-policy was not found.</Message></Error></ErrorResponse>`))
 	}))
 	defer server.Close()
 
@@ -130,7 +130,7 @@ func TestGetManagedPolicyVersion(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<GetPolicyVersionResponse><GetPolicyVersionResult><PolicyVersion><Document>%7B%22Version%22%3A%222012-10-17%22%7D</Document><VersionId>v1</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></GetPolicyVersionResult></GetPolicyVersionResponse>`))
+		_, _ = w.Write([]byte(`<GetPolicyVersionResponse><GetPolicyVersionResult><PolicyVersion><Document>%7B%22Version%22%3A%222012-10-17%22%7D</Document><VersionId>v1</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></GetPolicyVersionResult></GetPolicyVersionResponse>`))
 	}))
 	defer server.Close()
 
@@ -165,7 +165,7 @@ func TestCreateManagedPolicyVersion(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<CreatePolicyVersionResponse><CreatePolicyVersionResult><PolicyVersion><Document>%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%5D%7D</Document><VersionId>v2</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></CreatePolicyVersionResult></CreatePolicyVersionResponse>`))
+		_, _ = w.Write([]byte(`<CreatePolicyVersionResponse><CreatePolicyVersionResult><PolicyVersion><Document>%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%5D%7D</Document><VersionId>v2</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></CreatePolicyVersionResult></CreatePolicyVersionResponse>`))
 	}))
 	defer server.Close()
 
@@ -190,7 +190,7 @@ func TestDeleteManagedPolicy(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<DeletePolicyResponse></DeletePolicyResponse>`))
+		_, _ = w.Write([]byte(`<DeletePolicyResponse></DeletePolicyResponse>`))
 	}))
 	defer server.Close()
 
@@ -204,7 +204,7 @@ func TestDeleteManagedPolicy(t *testing.T) {
 func TestDeleteManagedPolicy_NoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>Policy arn:aws:iam::123:policy/test-policy was not found.</Message></Error></ErrorResponse>`))
+		_, _ = w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>Policy arn:aws:iam::123:policy/test-policy was not found.</Message></Error></ErrorResponse>`))
 	}))
 	defer server.Close()
 

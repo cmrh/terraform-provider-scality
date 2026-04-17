@@ -27,7 +27,7 @@ func TestCreateUser(t *testing.T) {
 			t.Errorf("expected UserName=testuser, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<CreateUserResponse><CreateUserResult><User><UserName>testuser</UserName><UserId>AIDTEST123</UserId><Arn>arn:aws:iam::123:user/testuser</Arn><Path>/</Path></User></CreateUserResult></CreateUserResponse>`))
+		_, _ = w.Write([]byte(`<CreateUserResponse><CreateUserResult><User><UserName>testuser</UserName><UserId>AIDTEST123</UserId><Arn>arn:aws:iam::123:user/testuser</Arn><Path>/</Path></User></CreateUserResult></CreateUserResponse>`))
 	}))
 	defer server.Close()
 
@@ -64,7 +64,7 @@ func TestGetUser(t *testing.T) {
 			t.Errorf("expected UserName=testuser, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<GetUserResponse><GetUserResult><User><UserName>testuser</UserName><UserId>AIDTEST123</UserId><Arn>arn:aws:iam::123:user/testuser</Arn><Path>/</Path></User></GetUserResult></GetUserResponse>`))
+		_, _ = w.Write([]byte(`<GetUserResponse><GetUserResult><User><UserName>testuser</UserName><UserId>AIDTEST123</UserId><Arn>arn:aws:iam::123:user/testuser</Arn><Path>/</Path></User></GetUserResult></GetUserResponse>`))
 	}))
 	defer server.Close()
 
@@ -90,7 +90,7 @@ func TestGetUser(t *testing.T) {
 func TestGetUserNoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(xmlErrorResponse("NoSuchEntity", "The user with name testuser cannot be found.")))
+		_, _ = w.Write([]byte(xmlErrorResponse("NoSuchEntity", "The user with name testuser cannot be found.")))
 	}))
 	defer server.Close()
 
@@ -177,7 +177,7 @@ func TestGetUserPolicy(t *testing.T) {
 			t.Errorf("expected PolicyName=mypolicy, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<GetUserPolicyResponse><GetUserPolicyResult><UserName>testuser</UserName><PolicyName>mypolicy</PolicyName><PolicyDocument>%7B%22Version%22%3A%222012-10-17%22%7D</PolicyDocument></GetUserPolicyResult></GetUserPolicyResponse>`))
+		_, _ = w.Write([]byte(`<GetUserPolicyResponse><GetUserPolicyResult><UserName>testuser</UserName><PolicyName>mypolicy</PolicyName><PolicyDocument>%7B%22Version%22%3A%222012-10-17%22%7D</PolicyDocument></GetUserPolicyResult></GetUserPolicyResponse>`))
 	}))
 	defer server.Close()
 
@@ -196,7 +196,7 @@ func TestGetUserPolicy(t *testing.T) {
 func TestGetUserPolicyNoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(xmlErrorResponse("NoSuchEntity", "The user policy with name mypolicy cannot be found.")))
+		_, _ = w.Write([]byte(xmlErrorResponse("NoSuchEntity", "The user policy with name mypolicy cannot be found.")))
 	}))
 	defer server.Close()
 
@@ -251,7 +251,7 @@ func TestCreateUserAccessKey(t *testing.T) {
 			t.Errorf("expected UserName=testuser, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<CreateAccessKeyResponse><CreateAccessKeyResult><AccessKey><UserName>testuser</UserName><AccessKeyId>AKIATEST</AccessKeyId><SecretAccessKey>secret123</SecretAccessKey><Status>Active</Status></AccessKey></CreateAccessKeyResult></CreateAccessKeyResponse>`))
+		_, _ = w.Write([]byte(`<CreateAccessKeyResponse><CreateAccessKeyResult><AccessKey><UserName>testuser</UserName><AccessKeyId>AKIATEST</AccessKeyId><SecretAccessKey>secret123</SecretAccessKey><Status>Active</Status></AccessKey></CreateAccessKeyResult></CreateAccessKeyResponse>`))
 	}))
 	defer server.Close()
 
@@ -288,7 +288,7 @@ func TestListUserAccessKeys(t *testing.T) {
 			t.Errorf("expected UserName=testuser, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<ListAccessKeysResponse><ListAccessKeysResult><AccessKeyMetadata><member><UserName>testuser</UserName><AccessKeyId>AKIATEST1</AccessKeyId><Status>Active</Status></member><member><UserName>testuser</UserName><AccessKeyId>AKIATEST2</AccessKeyId><Status>Inactive</Status></member></AccessKeyMetadata></ListAccessKeysResult></ListAccessKeysResponse>`))
+		_, _ = w.Write([]byte(`<ListAccessKeysResponse><ListAccessKeysResult><AccessKeyMetadata><member><UserName>testuser</UserName><AccessKeyId>AKIATEST1</AccessKeyId><Status>Active</Status></member><member><UserName>testuser</UserName><AccessKeyId>AKIATEST2</AccessKeyId><Status>Inactive</Status></member></AccessKeyMetadata></ListAccessKeysResult></ListAccessKeysResponse>`))
 	}))
 	defer server.Close()
 
@@ -355,7 +355,7 @@ func TestCreateGroup(t *testing.T) {
 			t.Errorf("expected GroupName=testgroup, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<CreateGroupResponse><CreateGroupResult><Group><GroupName>testgroup</GroupName><GroupId>AGPTEST123</GroupId><Arn>arn:aws:iam::123:group/testgroup</Arn><Path>/</Path></Group></CreateGroupResult></CreateGroupResponse>`))
+		_, _ = w.Write([]byte(`<CreateGroupResponse><CreateGroupResult><Group><GroupName>testgroup</GroupName><GroupId>AGPTEST123</GroupId><Arn>arn:aws:iam::123:group/testgroup</Arn><Path>/</Path></Group></CreateGroupResult></CreateGroupResponse>`))
 	}))
 	defer server.Close()
 
@@ -392,7 +392,7 @@ func TestGetGroup(t *testing.T) {
 			t.Errorf("expected GroupName=testgroup, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<GetGroupResponse><GetGroupResult><Group><GroupName>testgroup</GroupName><GroupId>AGPTEST123</GroupId><Arn>arn:aws:iam::123:group/testgroup</Arn><Path>/</Path></Group><Users><member><UserName>user1</UserName><UserId>AID001</UserId><Arn>arn:aws:iam::123:user/user1</Arn><Path>/</Path></member><member><UserName>user2</UserName><UserId>AID002</UserId><Arn>arn:aws:iam::123:user/user2</Arn><Path>/</Path></member></Users></GetGroupResult></GetGroupResponse>`))
+		_, _ = w.Write([]byte(`<GetGroupResponse><GetGroupResult><Group><GroupName>testgroup</GroupName><GroupId>AGPTEST123</GroupId><Arn>arn:aws:iam::123:group/testgroup</Arn><Path>/</Path></Group><Users><member><UserName>user1</UserName><UserId>AID001</UserId><Arn>arn:aws:iam::123:user/user1</Arn><Path>/</Path></member><member><UserName>user2</UserName><UserId>AID002</UserId><Arn>arn:aws:iam::123:user/user2</Arn><Path>/</Path></member></Users></GetGroupResult></GetGroupResponse>`))
 	}))
 	defer server.Close()
 
@@ -427,7 +427,7 @@ func TestGetGroup(t *testing.T) {
 func TestGetGroupNoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(xmlErrorResponse("NoSuchEntity", "The group with name testgroup cannot be found.")))
+		_, _ = w.Write([]byte(xmlErrorResponse("NoSuchEntity", "The group with name testgroup cannot be found.")))
 	}))
 	defer server.Close()
 
@@ -447,7 +447,7 @@ func TestGetGroupNoSuchEntity(t *testing.T) {
 func TestGetGroupEmptyUsers(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(`<GetGroupResponse><GetGroupResult><Group><GroupName>emptygroup</GroupName><GroupId>AGPEMPTY</GroupId><Arn>arn:aws:iam::123:group/emptygroup</Arn><Path>/</Path></Group><Users></Users></GetGroupResult></GetGroupResponse>`))
+		_, _ = w.Write([]byte(`<GetGroupResponse><GetGroupResult><Group><GroupName>emptygroup</GroupName><GroupId>AGPEMPTY</GroupId><Arn>arn:aws:iam::123:group/emptygroup</Arn><Path>/</Path></Group><Users></Users></GetGroupResult></GetGroupResponse>`))
 	}))
 	defer server.Close()
 
@@ -550,7 +550,7 @@ func TestRemoveUserFromGroup(t *testing.T) {
 func TestServerErrorReturnsXMLError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte(xmlErrorResponse("InternalFailure", "Something went wrong")))
+		_, _ = w.Write([]byte(xmlErrorResponse("InternalFailure", "Something went wrong")))
 	}))
 	defer server.Close()
 
@@ -570,7 +570,7 @@ func TestServerErrorReturnsXMLError(t *testing.T) {
 func TestServerErrorNonXMLBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
-		w.Write([]byte("Service Unavailable"))
+		_, _ = w.Write([]byte("Service Unavailable"))
 	}))
 	defer server.Close()
 
@@ -587,7 +587,7 @@ func TestServerErrorNonXMLBody(t *testing.T) {
 func TestDeleteUserServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
-		w.Write([]byte(xmlErrorResponse("AccessDenied", "User is not authorized")))
+		_, _ = w.Write([]byte(xmlErrorResponse("AccessDenied", "User is not authorized")))
 	}))
 	defer server.Close()
 
@@ -613,7 +613,7 @@ func TestRequestIsPostWithFormContentType(t *testing.T) {
 			t.Errorf("expected Content-Type=application/x-www-form-urlencoded, got %s", contentType)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<CreateUserResponse><CreateUserResult><User><UserName>testuser</UserName><UserId>AID1</UserId><Arn>arn:aws:iam::1:user/testuser</Arn><Path>/</Path></User></CreateUserResult></CreateUserResponse>`))
+		_, _ = w.Write([]byte(`<CreateUserResponse><CreateUserResult><User><UserName>testuser</UserName><UserId>AID1</UserId><Arn>arn:aws:iam::1:user/testuser</Arn><Path>/</Path></User></CreateUserResult></CreateUserResponse>`))
 	}))
 	defer server.Close()
 
@@ -633,7 +633,7 @@ func TestVersionParameterIncluded(t *testing.T) {
 			t.Errorf("expected Version=2010-05-08, got %s", got)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(`<CreateUserResponse><CreateUserResult><User><UserName>x</UserName><UserId>X</UserId><Arn>arn</Arn><Path>/</Path></User></CreateUserResult></CreateUserResponse>`))
+		_, _ = w.Write([]byte(`<CreateUserResponse><CreateUserResult><User><UserName>x</UserName><UserId>X</UserId><Arn>arn</Arn><Path>/</Path></User></CreateUserResult></CreateUserResponse>`))
 	}))
 	defer server.Close()
 

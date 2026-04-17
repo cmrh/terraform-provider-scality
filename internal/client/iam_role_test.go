@@ -24,7 +24,7 @@ func TestCreateRole(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<CreateRoleResponse><CreateRoleResult><Role><RoleName>test-role</RoleName><RoleId>AROATEST123</RoleId><Arn>arn:aws:iam::123:role/test-role</Arn><Path>/</Path><AssumeRolePolicyDocument>%7B%22Version%22%3A%222012-10-17%22%7D</AssumeRolePolicyDocument></Role></CreateRoleResult></CreateRoleResponse>`))
+		_, _ = w.Write([]byte(`<CreateRoleResponse><CreateRoleResult><Role><RoleName>test-role</RoleName><RoleId>AROATEST123</RoleId><Arn>arn:aws:iam::123:role/test-role</Arn><Path>/</Path><AssumeRolePolicyDocument>%7B%22Version%22%3A%222012-10-17%22%7D</AssumeRolePolicyDocument></Role></CreateRoleResult></CreateRoleResponse>`))
 	}))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestGetRole(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<GetRoleResponse><GetRoleResult><Role><RoleName>test-role</RoleName><RoleId>AROATEST123</RoleId><Arn>arn:aws:iam::123:role/test-role</Arn><Path>/</Path><AssumeRolePolicyDocument>%7B%22Version%22%3A%222012-10-17%22%7D</AssumeRolePolicyDocument></Role></GetRoleResult></GetRoleResponse>`))
+		_, _ = w.Write([]byte(`<GetRoleResponse><GetRoleResult><Role><RoleName>test-role</RoleName><RoleId>AROATEST123</RoleId><Arn>arn:aws:iam::123:role/test-role</Arn><Path>/</Path><AssumeRolePolicyDocument>%7B%22Version%22%3A%222012-10-17%22%7D</AssumeRolePolicyDocument></Role></GetRoleResult></GetRoleResponse>`))
 	}))
 	defer server.Close()
 
@@ -93,7 +93,7 @@ func TestGetRole(t *testing.T) {
 func TestGetRole_NoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>The role with name test-role cannot be found.</Message></Error></ErrorResponse>`))
+		_, _ = w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>The role with name test-role cannot be found.</Message></Error></ErrorResponse>`))
 	}))
 	defer server.Close()
 
@@ -121,7 +121,7 @@ func TestDeleteRole(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<DeleteRoleResponse></DeleteRoleResponse>`))
+		_, _ = w.Write([]byte(`<DeleteRoleResponse></DeleteRoleResponse>`))
 	}))
 	defer server.Close()
 
@@ -135,7 +135,7 @@ func TestDeleteRole(t *testing.T) {
 func TestDeleteRole_NoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>The role with name test-role cannot be found.</Message></Error></ErrorResponse>`))
+		_, _ = w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>The role with name test-role cannot be found.</Message></Error></ErrorResponse>`))
 	}))
 	defer server.Close()
 
@@ -163,7 +163,7 @@ func TestAttachRolePolicy(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<AttachRolePolicyResponse></AttachRolePolicyResponse>`))
+		_, _ = w.Write([]byte(`<AttachRolePolicyResponse></AttachRolePolicyResponse>`))
 	}))
 	defer server.Close()
 
@@ -191,7 +191,7 @@ func TestDetachRolePolicy(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<DetachRolePolicyResponse></DetachRolePolicyResponse>`))
+		_, _ = w.Write([]byte(`<DetachRolePolicyResponse></DetachRolePolicyResponse>`))
 	}))
 	defer server.Close()
 
@@ -205,7 +205,7 @@ func TestDetachRolePolicy(t *testing.T) {
 func TestDetachRolePolicy_NoSuchEntity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>Policy arn:aws:iam::123:policy/test-policy was not found.</Message></Error></ErrorResponse>`))
+		_, _ = w.Write([]byte(`<ErrorResponse><Error><Code>NoSuchEntity</Code><Message>Policy arn:aws:iam::123:policy/test-policy was not found.</Message></Error></ErrorResponse>`))
 	}))
 	defer server.Close()
 
@@ -230,7 +230,7 @@ func TestListAttachedRolePolicies(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<ListAttachedRolePoliciesResponse><ListAttachedRolePoliciesResult><AttachedPolicies><member><PolicyName>policy1</PolicyName><PolicyArn>arn:aws:iam::123:policy/policy1</PolicyArn></member><member><PolicyName>policy2</PolicyName><PolicyArn>arn:aws:iam::123:policy/policy2</PolicyArn></member></AttachedPolicies></ListAttachedRolePoliciesResult></ListAttachedRolePoliciesResponse>`))
+		_, _ = w.Write([]byte(`<ListAttachedRolePoliciesResponse><ListAttachedRolePoliciesResult><AttachedPolicies><member><PolicyName>policy1</PolicyName><PolicyArn>arn:aws:iam::123:policy/policy1</PolicyArn></member><member><PolicyName>policy2</PolicyName><PolicyArn>arn:aws:iam::123:policy/policy2</PolicyArn></member></AttachedPolicies></ListAttachedRolePoliciesResult></ListAttachedRolePoliciesResponse>`))
 	}))
 	defer server.Close()
 
@@ -259,7 +259,7 @@ func TestListAttachedRolePolicies(t *testing.T) {
 func TestListAttachedRolePolicies_Empty(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<ListAttachedRolePoliciesResponse><ListAttachedRolePoliciesResult><AttachedPolicies></AttachedPolicies></ListAttachedRolePoliciesResult></ListAttachedRolePoliciesResponse>`))
+		_, _ = w.Write([]byte(`<ListAttachedRolePoliciesResponse><ListAttachedRolePoliciesResult><AttachedPolicies></AttachedPolicies></ListAttachedRolePoliciesResult></ListAttachedRolePoliciesResponse>`))
 	}))
 	defer server.Close()
 
