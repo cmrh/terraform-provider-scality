@@ -56,9 +56,10 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 	}
 
 	host := parsedURL.Host
-	canonicalURI := "/" + bucket
+	escapedBucket := url.PathEscape(bucket)
+	canonicalURI := "/" + escapedBucket
 
-	requestURL := c.Endpoint + "/" + bucket
+	requestURL := c.Endpoint + "/" + escapedBucket
 	canonicalQueryString := ""
 	if subresource != "" {
 		requestURL += "?" + subresource
