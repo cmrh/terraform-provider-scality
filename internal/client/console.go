@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -281,7 +282,7 @@ func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountNam
 		}
 	}
 
-	keysURL := fmt.Sprintf("%s%s/%s/keys", c.Endpoint, consoleAccountPath, accountName)
+	keysURL := fmt.Sprintf("%s%s/%s/keys", c.Endpoint, consoleAccountPath, url.PathEscape(accountName))
 
 	httpReq, err := http.NewRequestWithContext(ctx, httpMethodPost, keysURL, nil)
 	if err != nil {
@@ -324,7 +325,7 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 		}
 	}
 
-	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, accountName)
+	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, url.PathEscape(accountName))
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", accountURL, nil)
 	if err != nil {
@@ -372,7 +373,8 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}
 
 	// Step 1: Delete account
-	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, accountName)
+	escapedName := url.PathEscape(accountName)
+	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, escapedName)
 
 	req1, err := http.NewRequestWithContext(ctx, "DELETE", accountURL, nil)
 	if err != nil {
@@ -396,7 +398,7 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}
 
 	// Step 2: Delete user
-	userURL := fmt.Sprintf("%s%s/%s/user", c.Endpoint, consoleAccountPath, accountName)
+	userURL := fmt.Sprintf("%s%s/%s/user", c.Endpoint, consoleAccountPath, escapedName)
 
 	req2, err := http.NewRequestWithContext(ctx, "DELETE", userURL, nil)
 	if err != nil {
