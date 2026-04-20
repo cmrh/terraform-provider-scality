@@ -21,7 +21,7 @@ func TestGetBucketEncryption_Success(t *testing.T) {
 			t.Errorf("expected query to contain encryption, got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -46,7 +46,7 @@ func TestGetBucketEncryption_SSE_S3(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -69,7 +69,7 @@ func TestGetBucketEncryption_SSE_S3(t *testing.T) {
 func TestGetBucketEncryption_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(`<Error><Code>ServerSideEncryptionConfigurationNotFoundError</Code><Message>The server side encryption configuration was not found</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>ServerSideEncryptionConfigurationNotFoundError</Code><Message>The server side encryption configuration was not found</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -88,7 +88,7 @@ func TestGetBucketEncryption_NoRules(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 

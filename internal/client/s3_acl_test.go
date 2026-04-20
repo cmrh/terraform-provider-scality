@@ -21,7 +21,7 @@ func TestGetBucketACL_Success(t *testing.T) {
 			t.Errorf("expected query 'acl', got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(aclXML))
+		_, _ = w.Write([]byte(aclXML))
 	}))
 	defer server.Close()
 
@@ -51,7 +51,7 @@ func TestGetBucketACL_Success(t *testing.T) {
 func TestGetBucketACL_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
-		w.Write([]byte(`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -92,7 +92,7 @@ func TestPutBucketACL_Success(t *testing.T) {
 func TestPutBucketACL_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
-		w.Write([]byte(`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`))
 	}))
 	defer server.Close()
 

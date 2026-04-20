@@ -78,7 +78,7 @@ func TestGetBucketReplication_Success(t *testing.T) {
 			t.Errorf("expected query to contain replication, got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -110,7 +110,7 @@ func TestGetBucketReplication_Success(t *testing.T) {
 func TestGetBucketReplication_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(`<Error><Code>ReplicationConfigurationNotFoundError</Code><Message>The replication configuration was not found</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>ReplicationConfigurationNotFoundError</Code><Message>The replication configuration was not found</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -162,7 +162,7 @@ func TestDeleteBucketReplication_NotFound_Idempotent(t *testing.T) {
 func TestDeleteBucketReplication_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte(`<Error><Code>InternalError</Code><Message>Something went wrong</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>InternalError</Code><Message>Something went wrong</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -198,7 +198,7 @@ func TestGetBucketReplication_MultipleRules(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -257,7 +257,7 @@ func TestGetBucketReplication_WithStorageClass(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 

@@ -20,7 +20,7 @@ func TestGetBucketVersioning_Enabled(t *testing.T) {
 			t.Errorf("expected query to contain versioning, got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -39,7 +39,7 @@ func TestGetBucketVersioning_Suspended(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -58,7 +58,7 @@ func TestGetBucketVersioning_Unset(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -75,7 +75,7 @@ func TestGetBucketVersioning_Unset(t *testing.T) {
 func TestGetBucketVersioning_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -119,7 +119,7 @@ func TestPutBucketVersioning_Success(t *testing.T) {
 func TestPutBucketVersioning_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
 	}))
 	defer server.Close()
 

@@ -23,7 +23,7 @@ func TestGetBucketTagging_Success(t *testing.T) {
 			t.Errorf("expected query 'tagging', got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(taggingXML))
+		_, _ = w.Write([]byte(taggingXML))
 	}))
 	defer server.Close()
 
@@ -46,7 +46,7 @@ func TestGetBucketTagging_Success(t *testing.T) {
 func TestGetBucketTagging_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(`<Error><Code>NoSuchTagSet</Code><Message>The TagSet does not exist</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>NoSuchTagSet</Code><Message>The TagSet does not exist</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -63,7 +63,7 @@ func TestGetBucketTagging_NotFound(t *testing.T) {
 func TestGetBucketTagging_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
 	}))
 	defer server.Close()
 

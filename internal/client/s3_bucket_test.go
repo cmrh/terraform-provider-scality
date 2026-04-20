@@ -48,7 +48,7 @@ func TestCreateBucket_ObjectLockEnabled(t *testing.T) {
 func TestCreateBucket_AlreadyExists(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(409)
-		w.Write([]byte(`<Error><Code>BucketAlreadyOwnedByYou</Code><Message>Your previous request to create the named bucket succeeded and you already own it.</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>BucketAlreadyOwnedByYou</Code><Message>Your previous request to create the named bucket succeeded and you already own it.</Message></Error>`))
 	}))
 	defer server.Close()
 
@@ -151,7 +151,7 @@ func TestDeleteBucket_NotFound_Idempotent(t *testing.T) {
 func TestDeleteBucket_OtherError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
-		w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>InternalError</Code><Message>Internal server error</Message></Error>`))
 	}))
 	defer server.Close()
 

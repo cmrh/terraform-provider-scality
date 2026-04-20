@@ -21,7 +21,7 @@ func TestGetBucketLifecycle_Success(t *testing.T) {
 			t.Errorf("expected query to contain lifecycle, got %s", r.URL.RawQuery)
 		}
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -52,7 +52,7 @@ func TestGetBucketLifecycle_MultipleRules(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -83,7 +83,7 @@ func TestGetBucketLifecycle_ExpirationDate(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(xmlResp))
+		_, _ = w.Write([]byte(xmlResp))
 	}))
 	defer server.Close()
 
@@ -103,7 +103,7 @@ func TestGetBucketLifecycle_ExpirationDate(t *testing.T) {
 func TestGetBucketLifecycle_NotFound(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte(`<Error><Code>NoSuchLifecycleConfiguration</Code><Message>The lifecycle configuration does not exist</Message></Error>`))
+		_, _ = w.Write([]byte(`<Error><Code>NoSuchLifecycleConfiguration</Code><Message>The lifecycle configuration does not exist</Message></Error>`))
 	}))
 	defer server.Close()
 
