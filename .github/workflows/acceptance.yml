@@ -1,0 +1,31 @@
+name: Acceptance Tests
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  acceptance:
+    name: Acceptance Tests
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run acceptance tests
+        run: |
+          set -a
+          source "$HOME/.scality-test.env"
+          set +a
+          TF_ACC=1 go test ./... -v -count 1 -timeout 10m
