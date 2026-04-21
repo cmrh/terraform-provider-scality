@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &UserResource{}
@@ -54,6 +55,7 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"username": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM user",
 				Required:            true,
+				Validators:          validators.IAMName(64),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

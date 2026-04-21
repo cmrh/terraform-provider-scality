@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &UserPolicyResource{}
@@ -51,6 +52,7 @@ func (r *UserPolicyResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"username": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM user this policy is attached to",
 				Required:            true,
+				Validators:          validators.IAMName(64),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -58,6 +60,7 @@ func (r *UserPolicyResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"policy_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the inline policy",
 				Required:            true,
+				Validators:          validators.IAMName(128),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -65,6 +68,7 @@ func (r *UserPolicyResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"policy_document": schema.StringAttribute{
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
+				Validators:          validators.JSONDocument(),
 			},
 		},
 	}

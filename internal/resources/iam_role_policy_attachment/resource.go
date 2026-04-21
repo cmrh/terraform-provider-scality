@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &IAMRolePolicyAttachmentResource{}
@@ -51,6 +52,7 @@ func (r *IAMRolePolicyAttachmentResource) Schema(ctx context.Context, req resour
 			"role_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM role to attach the policy to",
 				Required:            true,
+				Validators:          validators.IAMName(64),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -58,6 +60,7 @@ func (r *IAMRolePolicyAttachmentResource) Schema(ctx context.Context, req resour
 			"policy_arn": schema.StringAttribute{
 				MarkdownDescription: "ARN of the IAM managed policy to attach",
 				Required:            true,
+				Validators:          validators.PolicyARN(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &IAMRoleResource{}
@@ -52,6 +53,7 @@ func (r *IAMRoleResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"role_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM role",
 				Required:            true,
+				Validators:          validators.IAMName(64),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -59,6 +61,7 @@ func (r *IAMRoleResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"assume_role_policy": schema.StringAttribute{
 				MarkdownDescription: "JSON trust policy document that grants entities permission to assume the role",
 				Required:            true,
+				Validators:          validators.JSONDocument(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

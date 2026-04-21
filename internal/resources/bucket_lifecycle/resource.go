@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &BucketLifecycleResource{}
@@ -42,7 +43,8 @@ func (r *BucketLifecycleResource) Schema(ctx context.Context, req resource.Schem
 				Sensitive: true,
 			},
 			"bucket": schema.StringAttribute{
-				Required: true,
+				Required:   true,
+				Validators: validators.BucketName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -56,7 +58,8 @@ func (r *BucketLifecycleResource) Schema(ctx context.Context, req resource.Schem
 							Required: true,
 						},
 						"status": schema.StringAttribute{
-							Required: true,
+							Required:   true,
+							Validators: validators.OneOf("Enabled", "Disabled"),
 						},
 						"prefix": schema.StringAttribute{
 							Optional: true,

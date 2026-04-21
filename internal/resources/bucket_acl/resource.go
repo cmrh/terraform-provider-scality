@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &BucketACLResource{}
@@ -41,13 +42,15 @@ func (r *BucketACLResource) Schema(ctx context.Context, req resource.SchemaReque
 				Sensitive: true,
 			},
 			"bucket": schema.StringAttribute{
-				Required: true,
+				Required:   true,
+				Validators: validators.BucketName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"acl": schema.StringAttribute{
-				Required: true,
+				Required:   true,
+				Validators: validators.OneOf("private", "public-read", "public-read-write", "authenticated-read"),
 			},
 		},
 	}

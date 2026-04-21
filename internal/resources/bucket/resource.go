@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &BucketResource{}
@@ -49,6 +50,7 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"bucket": schema.StringAttribute{
 				MarkdownDescription: "Name of the S3 bucket",
 				Required:            true,
+				Validators:          validators.BucketName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
