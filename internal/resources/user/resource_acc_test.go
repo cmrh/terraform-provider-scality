@@ -16,7 +16,7 @@ func TestAccUser_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_user"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_user"),
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderBlock() + fmt.Sprintf(`

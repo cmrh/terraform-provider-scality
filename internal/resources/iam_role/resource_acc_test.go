@@ -16,7 +16,7 @@ func TestAccIAMRole_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_iam_role"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_iam_role"),
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderBlock() + fmt.Sprintf(`

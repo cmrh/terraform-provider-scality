@@ -16,7 +16,7 @@ func TestAccGroup_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_group"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_group"),
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderBlock() + fmt.Sprintf(`

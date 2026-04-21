@@ -59,7 +59,7 @@ func TestAccBucketLifecycle_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_bucket_lifecycle"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_lifecycle"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccBucketLifecycleBase(name) + `

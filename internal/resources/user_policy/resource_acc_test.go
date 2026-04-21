@@ -16,7 +16,7 @@ func TestAccUserPolicy_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_user_policy"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_user_policy"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccUserPolicyConfig(name, `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:ListBucket","Resource":"*"}]}`),
@@ -40,7 +40,7 @@ func TestAccUserPolicy_update(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_user_policy"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_user_policy"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccUserPolicyConfig(name, doc1),

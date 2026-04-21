@@ -16,7 +16,7 @@ func TestAccIAMRolePolicyAttachment_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_iam_role_policy_attachment"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_iam_role_policy_attachment"),
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderBlock() + fmt.Sprintf(`

@@ -60,7 +60,7 @@ func TestAccBucketObjectLock_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_bucket_object_lock"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_object_lock"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccBucketObjectLockBase(name) + `

@@ -223,7 +223,7 @@ func TestAccBucketReplication_crr(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckCRR(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_bucket_replication"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_replication"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCRRConfig(name),

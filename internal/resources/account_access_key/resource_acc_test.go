@@ -16,7 +16,7 @@ func TestAccAccountAccessKey_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_account_access_key"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_account_access_key"),
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderBlock() + fmt.Sprintf(`

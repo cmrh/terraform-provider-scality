@@ -33,7 +33,7 @@ func TestAccIAMPolicy_basic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_iam_policy"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_iam_policy"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccIAMPolicyConfig(name, `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"*"}]}`),
@@ -56,7 +56,7 @@ func TestAccIAMPolicy_update(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheckConsole(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:            acctest.CheckResourceDestroyed("scality_iam_policy"),
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_iam_policy"),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccIAMPolicyConfig(name, doc1),
