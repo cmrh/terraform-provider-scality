@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &IAMPolicyResource{}
@@ -52,6 +53,7 @@ func (r *IAMPolicyResource) Schema(ctx context.Context, req resource.SchemaReque
 			"policy_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the managed policy",
 				Required:            true,
+				Validators:          validators.IAMName(128),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -59,6 +61,7 @@ func (r *IAMPolicyResource) Schema(ctx context.Context, req resource.SchemaReque
 			"policy_document": schema.StringAttribute{
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
+				Validators:          validators.JSONDocument(),
 			},
 			"arn": schema.StringAttribute{
 				MarkdownDescription: "ARN of the managed policy",

@@ -179,7 +179,7 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 	resp.ResourceData = clientData
 }
 
-func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *ScalityProvider) resourceFactories() []func() resource.Resource {
 	return []func() resource.Resource{
 		account.NewAccountResource,
 		consoleaccount.NewConsoleAccountResource,
@@ -200,6 +200,10 @@ func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resou
 		group.NewGroupResource,
 		groupmembership.NewGroupMembershipResource,
 	}
+}
+
+func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resource {
+	return p.resourceFactories()
 }
 
 func (p *ScalityProvider) DataSources(ctx context.Context) []func() datasource.DataSource {

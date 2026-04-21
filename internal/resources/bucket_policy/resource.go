@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &BucketPolicyResource{}
@@ -47,6 +48,7 @@ func (r *BucketPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 			"bucket": schema.StringAttribute{
 				MarkdownDescription: "Name of the S3 bucket",
 				Required:            true,
+				Validators:          validators.BucketName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -54,6 +56,7 @@ func (r *BucketPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 			"policy": schema.StringAttribute{
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
+				Validators:          validators.JSONDocument(),
 			},
 		},
 	}

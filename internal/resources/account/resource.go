@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &AccountResource{}
@@ -47,6 +48,7 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Name of the account",
 				Required:            true,
+				Validators:          validators.AccountName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -54,6 +56,7 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"email_address": schema.StringAttribute{
 				MarkdownDescription: "Email address for the account",
 				Required:            true,
+				Validators:          validators.Email(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

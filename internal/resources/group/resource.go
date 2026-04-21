@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &GroupResource{}
@@ -54,6 +55,7 @@ func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"group_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM group",
 				Required:            true,
+				Validators:          validators.IAMName(128),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &ConsoleAccountResource{}
@@ -81,6 +82,7 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 			"account_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the account",
 				Required:            true,
+				Validators:          validators.AccountName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -88,6 +90,7 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 			"email": schema.StringAttribute{
 				MarkdownDescription: "Email address for the account",
 				Required:            true,
+				Validators:          validators.Email(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -110,6 +113,7 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 			"password_length": schema.Int64Attribute{
 				MarkdownDescription: "Length of generated password (default 16, only used if generate_random_password is true)",
 				Optional:            true,
+				Validators:          validators.Int64AtLeast(16),
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
 				},

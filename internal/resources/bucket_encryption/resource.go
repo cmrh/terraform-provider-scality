@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &BucketEncryptionResource{}
@@ -48,6 +49,7 @@ func (r *BucketEncryptionResource) Schema(ctx context.Context, req resource.Sche
 			"bucket": schema.StringAttribute{
 				MarkdownDescription: "Name of the S3 bucket",
 				Required:            true,
+				Validators:          validators.BucketName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -55,6 +57,7 @@ func (r *BucketEncryptionResource) Schema(ctx context.Context, req resource.Sche
 			"sse_algorithm": schema.StringAttribute{
 				MarkdownDescription: "Server-side encryption algorithm to use (AES256 or aws:kms)",
 				Required:            true,
+				Validators:          validators.OneOf("AES256", "aws:kms"),
 			},
 			"kms_master_key_id": schema.StringAttribute{
 				MarkdownDescription: "KMS master key ID to use for encryption (only for aws:kms)",

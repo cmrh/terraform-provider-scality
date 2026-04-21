@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/scality/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &BucketObjectLockResource{}
@@ -48,6 +49,7 @@ func (r *BucketObjectLockResource) Schema(ctx context.Context, req resource.Sche
 			"bucket": schema.StringAttribute{
 				MarkdownDescription: "Name of the S3 bucket",
 				Required:            true,
+				Validators:          validators.BucketName(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -55,6 +57,7 @@ func (r *BucketObjectLockResource) Schema(ctx context.Context, req resource.Sche
 			"retention_mode": schema.StringAttribute{
 				MarkdownDescription: "Default retention mode for objects placed in the bucket (GOVERNANCE or COMPLIANCE)",
 				Required:            true,
+				Validators:          validators.OneOf("GOVERNANCE", "COMPLIANCE"),
 			},
 			"retention_days": schema.Int64Attribute{
 				MarkdownDescription: "Number of days for the default retention period (mutually exclusive with retention_years)",
