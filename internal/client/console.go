@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,7 @@ type ConsoleClient struct {
 	Username   string
 	Password   string
 	HTTPClient *http.Client
+	mu         sync.Mutex
 	token      string
 }
 
@@ -115,7 +117,15 @@ func (c *ConsoleClient) cacheToken(token string) error {
 }
 
 // Authenticate authenticates with the Console API and caches the token.
+// Safe for concurrent use; only one goroutine authenticates at a time.
 func (c *ConsoleClient) Authenticate(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.token != "" {
+		return nil
+	}
+
 	if cachedToken, err := c.getCachedToken(); err == nil {
 		c.token = cachedToken
 		return nil
@@ -179,6 +189,27 @@ func (c *ConsoleClient) Authenticate(ctx context.Context) error {
 	return nil
 }
 
+// ensureAuthenticated checks if a token is present, and if not, authenticates.
+// Callers do not need to hold the lock; Authenticate handles its own locking.
+func (c *ConsoleClient) ensureAuthenticated(ctx context.Context) error {
+	c.mu.Lock()
+	hasToken := c.token != ""
+	c.mu.Unlock()
+
+	if hasToken {
+		return nil
+	}
+
+	return c.Authenticate(ctx)
+}
+
+// getToken returns the current token in a thread-safe manner.
+func (c *ConsoleClient) getToken() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.token
+}
+
 // ConsoleAccountCreateRequest represents Console account creation parameters.
 type ConsoleAccountCreateRequest struct {
 	AccountName string `json:"accountName"`
@@ -223,10 +254,8 @@ type ConsoleAccessKeyResponse struct {
 
 // CreateConsoleAccount creates a new account via Console API.
 func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAccountCreateRequest) (*ConsoleAccountCreateResponse, error) {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return nil, err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return nil, err
 	}
 
 	accountURL := c.Endpoint + consoleAccountPath
@@ -243,7 +272,7 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAcc
 
 	httpReq.Header.Set("Content-Type", consoleContentType)
 	httpReq.Header.Set("Accept", consoleContentType)
-	httpReq.Header.Set("x-access-token", c.token)
+	httpReq.Header.Set("x-access-token", c.getToken())
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -276,10 +305,8 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAcc
 
 // GenerateConsoleAccessKey generates persistent S3 access keys for an account.
 func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountName string) (*ConsoleAccessKeyResponse, error) {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return nil, err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return nil, err
 	}
 
 	keysURL := fmt.Sprintf("%s%s/%s/keys", c.Endpoint, consoleAccountPath, url.PathEscape(accountName))
@@ -290,7 +317,7 @@ func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountNam
 	}
 
 	httpReq.Header.Set("Accept", consoleContentType)
-	httpReq.Header.Set("x-access-token", c.token)
+	httpReq.Header.Set("x-access-token", c.getToken())
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -319,10 +346,8 @@ func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountNam
 
 // GetConsoleAccount retrieves Console account details.
 func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName string) (*ConsoleAccountGetResponse, error) {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return nil, err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return nil, err
 	}
 
 	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, url.PathEscape(accountName))
@@ -333,7 +358,7 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 	}
 
 	httpReq.Header.Set("Accept", consoleContentType)
-	httpReq.Header.Set("x-access-token", c.token)
+	httpReq.Header.Set("x-access-token", c.getToken())
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -366,11 +391,11 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 
 // DeleteConsoleAccount deletes a Console account (two-step: account + user).
 func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName string) error {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return err
 	}
+
+	token := c.getToken()
 
 	// Step 1: Delete account
 	escapedName := url.PathEscape(accountName)
@@ -382,7 +407,7 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}
 
 	req1.Header.Set("Accept", "*/*")
-	req1.Header.Set("x-access-token", c.token)
+	req1.Header.Set("x-access-token", token)
 
 	resp1, err := c.HTTPClient.Do(req1)
 	if err != nil {
@@ -393,7 +418,10 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}()
 
 	if resp1.StatusCode != 200 && resp1.StatusCode != 204 && resp1.StatusCode != 404 {
-		body, _ := io.ReadAll(resp1.Body)
+		body, err := io.ReadAll(resp1.Body)
+		if err != nil {
+			return fmt.Errorf("account delete failed with status %d (body unreadable: %w)", resp1.StatusCode, err)
+		}
 		return fmt.Errorf("account delete failed with status %d: %s", resp1.StatusCode, string(body))
 	}
 
@@ -406,7 +434,7 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}
 
 	req2.Header.Set("Accept", "*/*")
-	req2.Header.Set("x-access-token", c.token)
+	req2.Header.Set("x-access-token", token)
 
 	resp2, err := c.HTTPClient.Do(req2)
 	if err != nil {
@@ -417,7 +445,10 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}()
 
 	if resp2.StatusCode != 200 && resp2.StatusCode != 204 && resp2.StatusCode != 404 {
-		body, _ := io.ReadAll(resp2.Body)
+		body, err := io.ReadAll(resp2.Body)
+		if err != nil {
+			return fmt.Errorf("user delete failed with status %d (body unreadable: %w)", resp2.StatusCode, err)
+		}
 		return fmt.Errorf("user delete failed with status %d: %s", resp2.StatusCode, string(body))
 	}
 

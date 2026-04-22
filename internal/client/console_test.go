@@ -637,3 +637,58 @@ func TestCreateConsoleAccount_AuthFailurePropagates(t *testing.T) {
 		t.Errorf("expected error to mention 401, got: %v", err)
 	}
 }
+
+// --- Concurrency safety ---
+
+func TestConcurrentAuthenticate_NoRace(t *testing.T) {
+	authCount := 0
+	var mu sync.Mutex
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == consoleAuthPath {
+			mu.Lock()
+			authCount++
+			mu.Unlock()
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte(`{"success":true,"token":"test-jwt-token"}`))
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"success":true,"data":{"accountName":"x","email":"x@x.com","quota":0,"createdAt":"2024-01-01T00:00:00Z"}}`))
+	}))
+	defer server.Close()
+
+	client := NewConsoleClient(server.URL, "admin", "password123", false)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := client.GetConsoleAccount(context.Background(), "test")
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("concurrent request failed: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if authCount != 1 {
+		t.Errorf("expected exactly 1 auth call, got %d", authCount)
+	}
+}
