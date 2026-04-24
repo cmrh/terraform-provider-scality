@@ -1,15 +1,19 @@
 # Makefile for Terraform Provider Scality
 
+VERSION ?= dev
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+
 default: build
 
 # Build the provider
 build:
-	go build -o terraform-provider-scality
+	go build -ldflags="-s -w -X main.version=$(VERSION)" -o terraform-provider-scality
 
 # Install the provider locally for development
 install: build
-	mkdir -p ~/.terraform.d/plugins/registry.terraform.io/scality/scality/v0.4.1/linux_amd64/
-	cp terraform-provider-scality ~/.terraform.d/plugins/registry.terraform.io/scality/scality/v0.4.1/linux_amd64/
+	mkdir -p ~/.terraform.d/plugins/registry.terraform.io/scality/scality/$(VERSION)/$(GOOS)_$(GOARCH)/
+	cp terraform-provider-scality ~/.terraform.d/plugins/registry.terraform.io/scality/scality/$(VERSION)/$(GOOS)_$(GOARCH)/
 
 # Run tests
 test:

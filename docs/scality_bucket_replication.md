@@ -23,9 +23,64 @@ resource "scality_bucket_replication" "backup" {
 
 Cross-site replication (CRR) requires IAM roles on both the source and destination accounts. The `role` attribute accepts a comma-separated pair of role ARNs.
 
+CRR spans two independent Scality clusters, so you need two provider instances — one per cluster. Use the `alias` argument to define a second provider pointing at the destination cluster.
+
+Create a `.env` file with credentials for both clusters:
+
+```bash
+# Source cluster
+SCALITY_ENDPOINT="http://source-cluster:8080"
+SCALITY_ACCESS_KEY="<source-admin-access-key>"
+SCALITY_SECRET_KEY="<source-admin-secret-key>"
+SCALITY_CONSOLE_ENDPOINT="http://source-cluster:8080"
+SCALITY_CONSOLE_USERNAME="admin"
+SCALITY_CONSOLE_PASSWORD="<source-admin-password>"
+
+# Destination cluster
+TF_VAR_dest_endpoint="http://dest-cluster:8080"
+TF_VAR_dest_access_key="<dest-admin-access-key>"
+TF_VAR_dest_secret_key="<dest-admin-secret-key>"
+TF_VAR_dest_console_endpoint="http://dest-cluster:8080"
+TF_VAR_dest_console_username="admin"
+TF_VAR_dest_console_password="<dest-admin-password>"
+```
+
+The default provider reads `SCALITY_*` variables automatically. The destination provider uses `TF_VAR_*` variables which Terraform/OpenTofu maps to input variables:
+
 ```hcl
+variable "dest_endpoint" {}
+variable "dest_access_key" { sensitive = true }
+variable "dest_secret_key" { sensitive = true }
+variable "dest_console_endpoint" {}
+variable "dest_console_username" {}
+variable "dest_console_password" { sensitive = true }
+
+provider "scality" {
+  # Source cluster (default provider) — configured via SCALITY_* env vars
+}
+
+provider "scality" {
+  alias            = "dest"
+  endpoint         = var.dest_endpoint
+  access_key       = var.dest_access_key
+  secret_key       = var.dest_secret_key
+  console_endpoint = var.dest_console_endpoint
+  console_username = var.dest_console_username
+  console_password = var.dest_console_password
+}
+```
+
+Resources on the destination cluster reference the aliased provider with `provider = scality.dest`. Resources without an explicit `provider` argument use the default (source) provider.
+
+```hcl
+resource "scality_console_account" "dest" {
+  provider                 = scality.dest
+  account_name             = "replication-dest"
+  email                    = "replication-dest@example.com"
+  generate_random_password = true
+}
+
 resource "scality_bucket_replication" "crr" {
-  provider           = scality.source
   account_access_key = local.source_ak
   account_secret_key = local.source_sk
   bucket             = scality_bucket.source.bucket

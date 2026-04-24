@@ -538,6 +538,7 @@ type iamAccessKeyMetadataXML struct {
 	UserName    string `xml:"UserName"`
 	AccessKeyId string `xml:"AccessKeyId"`
 	Status      string `xml:"Status"`
+	CreateDate  string `xml:"CreateDate"`
 }
 
 type createGroupResponse struct {

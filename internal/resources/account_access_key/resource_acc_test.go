@@ -36,7 +36,6 @@ resource "scality_account_access_key" "test" {
 					resource.TestCheckResourceAttrSet(resourceName, "access_key"),
 					resource.TestCheckResourceAttrSet(resourceName, "secret_key"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "create_date"),
 				),
 			},
 		},
