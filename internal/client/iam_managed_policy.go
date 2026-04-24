@@ -136,13 +136,46 @@ func (c *IAMClient) CreateManagedPolicyVersion(ctx context.Context, accessKey, s
 	return nil
 }
 
+type listPolicyVersionsResponse struct {
+	XMLName xml.Name `xml:"ListPolicyVersionsResponse"`
+	Result  struct {
+		Versions []struct {
+			VersionId        string `xml:"VersionId"`
+			IsDefaultVersion bool   `xml:"IsDefaultVersion"`
+		} `xml:"Versions>member"`
+	} `xml:"ListPolicyVersionsResult"`
+}
+
 func (c *IAMClient) DeleteManagedPolicy(ctx context.Context, accessKey, secretKey, policyArn string) error {
-	params := url.Values{
-		"Action":    {"DeletePolicy"},
+	versions, err := c.doSignedRequest(ctx, accessKey, secretKey, url.Values{
+		"Action":    {"ListPolicyVersions"},
 		"PolicyArn": {policyArn},
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "NoSuchEntity") {
+			return nil
+		}
+		return fmt.Errorf("list policy versions: %w", err)
 	}
 
-	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+	var vResp listPolicyVersionsResponse
+	if err := xml.Unmarshal(versions, &vResp); err == nil {
+		for _, v := range vResp.Result.Versions {
+			if v.IsDefaultVersion {
+				continue
+			}
+			_, _ = c.doSignedRequest(ctx, accessKey, secretKey, url.Values{
+				"Action":    {"DeletePolicyVersion"},
+				"PolicyArn": {policyArn},
+				"VersionId": {v.VersionId},
+			})
+		}
+	}
+
+	_, err = c.doSignedRequest(ctx, accessKey, secretKey, url.Values{
+		"Action":    {"DeletePolicy"},
+		"PolicyArn": {policyArn},
+	})
 	if err != nil {
 		if strings.Contains(err.Error(), "NoSuchEntity") {
 			return nil

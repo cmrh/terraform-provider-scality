@@ -177,20 +177,25 @@ func TestCreateManagedPolicyVersion(t *testing.T) {
 }
 
 func TestDeleteManagedPolicy(t *testing.T) {
+	var actions []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
 		}
 
-		if got := r.FormValue("Action"); got != "DeletePolicy" {
-			t.Errorf("Action = %q, want DeletePolicy", got)
-		}
-		if got := r.FormValue("PolicyArn"); got != "arn:aws:iam::123:policy/test-policy" {
-			t.Errorf("PolicyArn = %q, want arn:aws:iam::123:policy/test-policy", got)
-		}
+		action := r.FormValue("Action")
+		actions = append(actions, action)
 
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`<DeletePolicyResponse></DeletePolicyResponse>`))
+		switch action {
+		case "ListPolicyVersions":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<ListPolicyVersionsResponse><ListPolicyVersionsResult><Versions><member><VersionId>v1</VersionId><IsDefaultVersion>true</IsDefaultVersion></member></Versions></ListPolicyVersionsResult></ListPolicyVersionsResponse>`))
+		case "DeletePolicy":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<DeletePolicyResponse></DeletePolicyResponse>`))
+		default:
+			t.Errorf("unexpected Action = %q", action)
+		}
 	}))
 	defer server.Close()
 
@@ -198,6 +203,48 @@ func TestDeleteManagedPolicy(t *testing.T) {
 	err := client.DeleteManagedPolicy(context.Background(), "ak", "sk", "arn:aws:iam::123:policy/test-policy")
 	if err != nil {
 		t.Fatalf("DeleteManagedPolicy returned error: %v", err)
+	}
+	if len(actions) != 2 || actions[0] != "ListPolicyVersions" || actions[1] != "DeletePolicy" {
+		t.Errorf("expected actions [ListPolicyVersions, DeletePolicy], got %v", actions)
+	}
+}
+
+func TestDeleteManagedPolicy_WithNonDefaultVersions(t *testing.T) {
+	var actions []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+
+		action := r.FormValue("Action")
+		actions = append(actions, action)
+
+		switch action {
+		case "ListPolicyVersions":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<ListPolicyVersionsResponse><ListPolicyVersionsResult><Versions><member><VersionId>v2</VersionId><IsDefaultVersion>true</IsDefaultVersion></member><member><VersionId>v1</VersionId><IsDefaultVersion>false</IsDefaultVersion></member></Versions></ListPolicyVersionsResult></ListPolicyVersionsResponse>`))
+		case "DeletePolicyVersion":
+			if got := r.FormValue("VersionId"); got != "v1" {
+				t.Errorf("DeletePolicyVersion VersionId = %q, want v1", got)
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<DeletePolicyVersionResponse></DeletePolicyVersionResponse>`))
+		case "DeletePolicy":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<DeletePolicyResponse></DeletePolicyResponse>`))
+		default:
+			t.Errorf("unexpected Action = %q", action)
+		}
+	}))
+	defer server.Close()
+
+	client := NewIAMClient(server.URL, "admin-ak", "admin-sk", false)
+	err := client.DeleteManagedPolicy(context.Background(), "ak", "sk", "arn:aws:iam::123:policy/test-policy")
+	if err != nil {
+		t.Fatalf("DeleteManagedPolicy returned error: %v", err)
+	}
+	if len(actions) != 3 || actions[0] != "ListPolicyVersions" || actions[1] != "DeletePolicyVersion" || actions[2] != "DeletePolicy" {
+		t.Errorf("expected actions [ListPolicyVersions, DeletePolicyVersion, DeletePolicy], got %v", actions)
 	}
 }
 

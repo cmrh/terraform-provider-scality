@@ -170,6 +170,9 @@ func (r *AccountAccessKeyResource) Read(ctx context.Context, req resource.ReadRe
 	for _, key := range keys {
 		if key.AccessKeyId == data.ID.ValueString() {
 			data.Status = types.StringValue(key.Status)
+			if key.CreateDate != "" {
+				data.CreateDate = types.StringValue(key.CreateDate)
+			}
 			found = true
 			break
 		}

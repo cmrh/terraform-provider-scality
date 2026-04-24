@@ -139,7 +139,11 @@ func clientRulesToModel(rules []client.LifecycleRule) []LifecycleRuleModel {
 		mr := LifecycleRuleModel{
 			ID:     types.StringValue(rule.ID),
 			Status: types.StringValue(rule.Status),
-			Prefix: types.StringValue(rule.Prefix),
+		}
+		if rule.Prefix != "" {
+			mr.Prefix = types.StringValue(rule.Prefix)
+		} else {
+			mr.Prefix = types.StringNull()
 		}
 		if rule.ExpirationDays > 0 {
 			mr.ExpirationDays = types.Int64Value(int64(rule.ExpirationDays))

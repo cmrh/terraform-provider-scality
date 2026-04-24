@@ -1,6 +1,7 @@
 package acctest
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
+	"github.com/scality/terraform-provider-scality/internal/client"
 	"github.com/scality/terraform-provider-scality/internal/provider"
 )
 
@@ -102,9 +104,50 @@ provider "scality" {
 
 func CheckResourceDestroyed(resourceType string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
+		ctx := context.Background()
+
 		for _, rs := range s.RootModule().Resources {
-			if rs.Type == resourceType {
-				return fmt.Errorf("resource %s (%s) still exists", resourceType, rs.Primary.ID)
+			if rs.Type != resourceType {
+				continue
+			}
+
+			switch resourceType {
+			case "scality_account":
+				iamClient := client.NewIAMClient(
+					os.Getenv("SCALITY_ENDPOINT"),
+					os.Getenv("SCALITY_ACCESS_KEY"),
+					os.Getenv("SCALITY_SECRET_KEY"),
+					true,
+				)
+				name := rs.Primary.Attributes["name"]
+				acct, err := iamClient.GetAccount(ctx, name)
+				if err != nil {
+					return fmt.Errorf("error checking account %s: %w", name, err)
+				}
+				if acct != nil {
+					return fmt.Errorf("account %s still exists after destroy", name)
+				}
+
+			case "scality_console_account":
+				consoleClient := client.NewConsoleClient(
+					os.Getenv("SCALITY_CONSOLE_ENDPOINT"),
+					os.Getenv("SCALITY_CONSOLE_USERNAME"),
+					os.Getenv("SCALITY_CONSOLE_PASSWORD"),
+					true,
+				)
+				name := rs.Primary.Attributes["name"]
+				acct, err := consoleClient.GetConsoleAccount(ctx, name)
+				if err != nil {
+					return fmt.Errorf("error checking console account %s: %w", name, err)
+				}
+				if acct != nil {
+					return fmt.Errorf("console account %s still exists after destroy", name)
+				}
+
+			default:
+				// Sub-resources (users, buckets, policies, etc.) are destroyed
+				// along with their parent account. We can't verify via API since
+				// the account credentials are already gone by this point.
 			}
 		}
 		return nil

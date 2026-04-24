@@ -77,7 +77,8 @@ jobs:
           CGO_ENABLED: 0
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          BINARY_NAME=terraform-provider-scality_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}
+          ARCHIVE_NAME=terraform-provider-scality_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}
+          BINARY_NAME=terraform-provider-scality_${VERSION}
 
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
@@ -85,14 +86,9 @@ jobs:
 
           go build -ldflags="-s -w -X main.version=${VERSION}" -o ${BINARY_NAME}
 
-          # Create archive
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip ${BINARY_NAME%.exe}.zip ${BINARY_NAME}
-            echo "ASSET=${BINARY_NAME%.exe}.zip" >> $GITHUB_ENV
-          else
-            tar -czf ${BINARY_NAME}.tar.gz ${BINARY_NAME}
-            echo "ASSET=${BINARY_NAME}.tar.gz" >> $GITHUB_ENV
-          fi
+          zip ${ARCHIVE_NAME}.zip ${BINARY_NAME}
+          rm ${BINARY_NAME}
+          echo "ASSET=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
 
       - name: Generate SHA256 checksum
         run: |
@@ -102,6 +98,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-dev') }}
           files: |
             ${{ env.ASSET }}
             ${{ env.ASSET }}.sha256
@@ -123,6 +120,12 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
 
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
       - name: Create SHA256SUMS file
         run: |
           VERSION=${{ steps.version.outputs.version }}
@@ -135,11 +138,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload SHA256SUMS
+      - name: Sign SHA256SUMS
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --detach-sign terraform-provider-scality_${VERSION}_SHA256SUMS
+
+      - name: Upload SHA256SUMS and signature
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: terraform-provider-scality_${{ steps.version.outputs.version }}_SHA256SUMS
+          files: |
+            terraform-provider-scality_${{ steps.version.outputs.version }}_SHA256SUMS
+            terraform-provider-scality_${{ steps.version.outputs.version }}_SHA256SUMS.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -149,7 +160,7 @@ jobs:
           cat > terraform-provider-scality_${VERSION}_manifest.json << EOF
           {
             "version": "${VERSION}",
-            "protocols": ["5.0"],
+            "protocols": ["6.0"],
             "platforms": [
               {
                 "os": "linux",
