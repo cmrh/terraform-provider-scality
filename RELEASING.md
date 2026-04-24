@@ -128,6 +128,7 @@ Acceptance tests run on the self-hosted runner against real Scality infrastructu
 ```bash
 # Use local tofu binary instead of downloading terraform
 export TF_ACC_TERRAFORM_PATH="/usr/bin/tofu"
+export TF_ACC_PROVIDER_NAMESPACE="scality"
 
 # Lab1 (source / primary)
 export SCALITY_ENDPOINT="http://<lab1-ip>:8080"
@@ -151,6 +152,7 @@ export SCALITY_DEST_CONSOLE_PASSWORD="<dest-admin-password>"
 | Variable | Used by | Purpose |
 |----------|---------|---------|
 | `TF_ACC_TERRAFORM_PATH` | test framework | Path to tofu/terraform binary — prevents the test harness from downloading one |
+| `TF_ACC_PROVIDER_NAMESPACE` | test framework | Provider namespace for reattach config — must be `scality` for OpenTofu compatibility |
 | `SCALITY_ENDPOINT` | all tests | S3/IAM API endpoint for the primary cluster |
 | `SCALITY_ACCESS_KEY` / `SECRET_KEY` | all tests | Admin credentials for IAM operations on the primary cluster |
 | `SCALITY_CONSOLE_ENDPOINT` | console tests | Management console endpoint (often the same as `SCALITY_ENDPOINT`) |

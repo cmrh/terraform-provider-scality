@@ -44,6 +44,11 @@ resource "scality_user_access_key" "source" {
   username           = scality_user.source.username
 }
 
+resource "scality_account_access_key" "source" {
+  account_access_key = scality_console_account.source.access_key
+  account_secret_key = scality_console_account.source.secret_key
+}
+
 resource "scality_console_account" "dest" {
   provider                 = scality.dest
   account_name             = "%[1]s-dst"
@@ -81,9 +86,15 @@ resource "scality_user_access_key" "dest" {
   username           = scality_user.dest.username
 }
 
+resource "scality_account_access_key" "dest" {
+  provider           = scality.dest
+  account_access_key = scality_console_account.dest.access_key
+  account_secret_key = scality_console_account.dest.secret_key
+}
+
 resource "scality_bucket" "source" {
-  account_access_key = scality_user_access_key.source.access_key_id
-  account_secret_key = scality_user_access_key.source.secret_access_key
+  account_access_key = scality_account_access_key.source.access_key
+  account_secret_key = scality_account_access_key.source.secret_key
   bucket             = "%[1]s-src"
   versioning         = true
 
@@ -92,8 +103,8 @@ resource "scality_bucket" "source" {
 
 resource "scality_bucket" "dest" {
   provider           = scality.dest
-  account_access_key = scality_user_access_key.dest.access_key_id
-  account_secret_key = scality_user_access_key.dest.secret_access_key
+  account_access_key = scality_account_access_key.dest.access_key
+  account_secret_key = scality_account_access_key.dest.secret_key
   bucket             = "%[1]s-dst"
   versioning         = true
 
@@ -198,8 +209,8 @@ resource "scality_iam_role_policy_attachment" "dest" {
 }
 
 resource "scality_bucket_replication" "test" {
-  account_access_key = scality_user_access_key.source.access_key_id
-  account_secret_key = scality_user_access_key.source.secret_access_key
+  account_access_key = scality_account_access_key.source.access_key
+  account_secret_key = scality_account_access_key.source.secret_key
   bucket             = scality_bucket.source.bucket
   role               = "${scality_iam_role.source.arn},${scality_iam_role.dest.arn}"
 
