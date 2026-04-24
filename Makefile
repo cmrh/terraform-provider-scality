@@ -8,8 +8,8 @@ build:
 
 # Install the provider locally for development
 install: build
-	mkdir -p ~/.terraform.d/plugins/registry.terraform.io/scality/scality/0.1.0/linux_amd64/
-	cp terraform-provider-scality ~/.terraform.d/plugins/registry.terraform.io/scality/scality/0.1.0/linux_amd64/
+	mkdir -p ~/.terraform.d/plugins/registry.terraform.io/scality/scality/v0.4.1/linux_amd64/
+	cp terraform-provider-scality ~/.terraform.d/plugins/registry.terraform.io/scality/scality/v0.4.1/linux_amd64/
 
 # Run tests
 test:

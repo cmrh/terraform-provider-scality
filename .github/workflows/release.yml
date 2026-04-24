@@ -1,0 +1,184 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: go test ./... -v -race
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Go code is not formatted:"
+            gofmt -d .
+            exit 1
+          fi
+
+  build:
+    name: Build Release Binaries
+    needs: test
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BINARY_NAME=terraform-provider-scality_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o ${BINARY_NAME}
+
+          # Create archive
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip ${BINARY_NAME%.exe}.zip ${BINARY_NAME}
+            echo "ASSET=${BINARY_NAME%.exe}.zip" >> $GITHUB_ENV
+          else
+            tar -czf ${BINARY_NAME}.tar.gz ${BINARY_NAME}
+            echo "ASSET=${BINARY_NAME}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Generate SHA256 checksum
+        run: |
+          sha256sum ${{ env.ASSET }} > ${{ env.ASSET }}.sha256
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-manifest:
+    name: Generate Release Manifest
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Create SHA256SUMS file
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+
+          # Download all checksums from the release
+          gh release download ${VERSION} --pattern "*.sha256"
+
+          # Combine into single SHA256SUMS file
+          cat *.sha256 > terraform-provider-scality_${VERSION}_SHA256SUMS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload SHA256SUMS
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: terraform-provider-scality_${{ steps.version.outputs.version }}_SHA256SUMS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create provider manifest
+        run: |
+          VERSION=${{ steps.version.outputs.version_no_v }}
+          cat > terraform-provider-scality_${VERSION}_manifest.json << EOF
+          {
+            "version": "${VERSION}",
+            "protocols": ["5.0"],
+            "platforms": [
+              {
+                "os": "linux",
+                "arch": "amd64"
+              },
+              {
+                "os": "linux",
+                "arch": "arm64"
+              },
+              {
+                "os": "darwin",
+                "arch": "amd64"
+              },
+              {
+                "os": "darwin",
+                "arch": "arm64"
+              },
+              {
+                "os": "windows",
+                "arch": "amd64"
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload manifest
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

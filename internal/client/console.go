@@ -1,16 +1,19 @@
-package provider
+package client
 
 import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -20,39 +23,49 @@ const (
 	consoleAccountPath = "/_/console/vault/accounts"
 	consoleContentType = "application/json"
 	tokenCachePrefix   = ".scality_console_token_"
-	tokenLifetime      = 86400 // 24 hours in seconds
 	tokenSafetyMargin  = 84600 // 23.5 hours in seconds
 	filePermissions    = 0600  // Owner read/write only
 )
 
-// ConsoleClient handles API communication with Scality Console API
+// ConsoleClient handles API communication with Scality Console API using JWT.
 type ConsoleClient struct {
 	Endpoint   string
 	Username   string
 	Password   string
 	HTTPClient *http.Client
+	mu         sync.Mutex
 	token      string
 }
 
-// NewConsoleClient creates a new Scality Console API client
-func NewConsoleClient(endpoint, username, password string) *ConsoleClient {
+// NewConsoleClient creates a new Scality Console API client.
+func NewConsoleClient(endpoint, username, password string, insecureSkipVerify bool) *ConsoleClient {
+	httpClient := &http.Client{
+		Timeout: defaultHTTPTimeout,
+	}
+
+	if insecureSkipVerify {
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+	}
+
 	return &ConsoleClient{
 		Endpoint:   endpoint,
 		Username:   username,
 		Password:   password,
-		HTTPClient: &http.Client{Timeout: defaultHTTPTimeout},
+		HTTPClient: httpClient,
 	}
 }
 
-// TokenCache represents cached token data
+// TokenCache represents cached token data.
 type TokenCache struct {
 	Token     string  `json:"token"`
 	Timestamp float64 `json:"timestamp"`
 }
 
-// getCacheFile returns the path to the token cache file
 func (c *ConsoleClient) getCacheFile() string {
-	// Create unique cache key from endpoint and username
 	cacheKey := fmt.Sprintf("%s:%s", c.Endpoint, c.Username)
 	hash := md5.Sum([]byte(cacheKey))
 	cacheHash := hex.EncodeToString(hash[:])
@@ -61,13 +74,12 @@ func (c *ConsoleClient) getCacheFile() string {
 	return filepath.Join(cacheDir, tokenCachePrefix+cacheHash)
 }
 
-// getCachedToken retrieves a cached token if valid
 func (c *ConsoleClient) getCachedToken() (string, error) {
 	cacheFile := c.getCacheFile()
 
 	data, err := os.ReadFile(cacheFile)
 	if err != nil {
-		return "", err // Cache doesn't exist or can't be read
+		return "", err
 	}
 
 	var cache TokenCache
@@ -75,11 +87,8 @@ func (c *ConsoleClient) getCachedToken() (string, error) {
 		return "", err
 	}
 
-	// Check if token is expired
-	// Use safety margin to refresh before actual expiry
 	tokenAge := time.Now().Unix() - int64(cache.Timestamp)
 	if tokenAge >= tokenSafetyMargin {
-		// Token expired, remove cache file
 		_ = os.Remove(cacheFile)
 		return "", fmt.Errorf("token expired")
 	}
@@ -87,7 +96,6 @@ func (c *ConsoleClient) getCachedToken() (string, error) {
 	return cache.Token, nil
 }
 
-// cacheToken stores a token with timestamp
 func (c *ConsoleClient) cacheToken(token string) error {
 	cacheFile := c.getCacheFile()
 
@@ -101,7 +109,6 @@ func (c *ConsoleClient) cacheToken(token string) error {
 		return err
 	}
 
-	// Write with restrictive permissions (owner read/write only)
 	if err := os.WriteFile(cacheFile, data, filePermissions); err != nil {
 		return err
 	}
@@ -109,15 +116,21 @@ func (c *ConsoleClient) cacheToken(token string) error {
 	return nil
 }
 
-// Authenticate authenticates with the Console API and caches the token
+// Authenticate authenticates with the Console API and caches the token.
+// Safe for concurrent use; only one goroutine authenticates at a time.
 func (c *ConsoleClient) Authenticate(ctx context.Context) error {
-	// Try to use cached token first
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.token != "" {
+		return nil
+	}
+
 	if cachedToken, err := c.getCachedToken(); err == nil {
 		c.token = cachedToken
 		return nil
 	}
 
-	// No valid cache, authenticate
 	authURL := c.Endpoint + consoleAuthPath
 
 	payload := map[string]string{
@@ -171,21 +184,55 @@ func (c *ConsoleClient) Authenticate(ctx context.Context) error {
 
 	c.token = result.Token
 
-	// Cache the token (ignore errors as caching is not critical)
 	_ = c.cacheToken(c.token)
 
 	return nil
 }
 
-// ConsoleAccountCreateRequest represents Console account creation parameters
+// ensureAuthenticated checks if a token is present, and if not, authenticates.
+// Callers do not need to hold the lock; Authenticate handles its own locking.
+func (c *ConsoleClient) ensureAuthenticated(ctx context.Context) error {
+	c.mu.Lock()
+	hasToken := c.token != ""
+	c.mu.Unlock()
+
+	if hasToken {
+		return nil
+	}
+
+	return c.Authenticate(ctx)
+}
+
+// getToken returns the current token in a thread-safe manner.
+func (c *ConsoleClient) getToken() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.token
+}
+
+// ConsoleAccountCreateRequest represents Console account creation parameters.
 type ConsoleAccountCreateRequest struct {
 	AccountName string `json:"accountName"`
 	Email       string `json:"email"`
 	Quota       int64  `json:"quota,omitempty"`
+	Password    string `json:"password,omitempty"`
 }
 
-// ConsoleAccountCreateResponse represents the Console API account creation response
+// ConsoleAccountCreateResponse represents the Console API account creation response.
 type ConsoleAccountCreateResponse struct {
+	Account struct {
+		ARN          string `json:"arn"`
+		CanonicalID  string `json:"canonicalId"`
+		ID           string `json:"id"`
+		EmailAddress string `json:"emailAddress"`
+		Name         string `json:"name"`
+		CreateDate   string `json:"createDate"`
+		QuotaMax     int64  `json:"quotaMax"`
+	} `json:"account"`
+}
+
+// ConsoleAccountGetResponse represents the Console API account get response.
+type ConsoleAccountGetResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
 		AccountName string `json:"accountName"`
@@ -195,12 +242,20 @@ type ConsoleAccountCreateResponse struct {
 	} `json:"data"`
 }
 
-// CreateConsoleAccount creates a new account via Console API (without password)
+// ConsoleAccessKeyResponse represents Console API access key generation response.
+type ConsoleAccessKeyResponse struct {
+	Key struct {
+		ID         string `json:"id"`
+		Value      string `json:"value"`
+		CreateDate string `json:"createDate"`
+		Status     string `json:"status"`
+	} `json:"key"`
+}
+
+// CreateConsoleAccount creates a new account via Console API.
 func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAccountCreateRequest) (*ConsoleAccountCreateResponse, error) {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return nil, err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return nil, err
 	}
 
 	accountURL := c.Endpoint + consoleAccountPath
@@ -217,7 +272,7 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAcc
 
 	httpReq.Header.Set("Content-Type", consoleContentType)
 	httpReq.Header.Set("Accept", consoleContentType)
-	httpReq.Header.Set("x-access-token", c.token)
+	httpReq.Header.Set("x-access-token", c.getToken())
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -248,25 +303,13 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAcc
 	return &result, nil
 }
 
-// ConsoleAccessKeyResponse represents Console API access key generation response
-type ConsoleAccessKeyResponse struct {
-	Success bool `json:"success"`
-	Data    struct {
-		AccessKey string `json:"accessKey"`
-		SecretKey string `json:"secretKey"`
-		Status    string `json:"status"`
-	} `json:"data"`
-}
-
-// GenerateConsoleAccessKey generates persistent S3 access keys for an account
+// GenerateConsoleAccessKey generates persistent S3 access keys for an account.
 func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountName string) (*ConsoleAccessKeyResponse, error) {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return nil, err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return nil, err
 	}
 
-	keysURL := fmt.Sprintf("%s%s/%s/keys", c.Endpoint, consoleAccountPath, accountName)
+	keysURL := fmt.Sprintf("%s%s/%s/keys", c.Endpoint, consoleAccountPath, url.PathEscape(accountName))
 
 	httpReq, err := http.NewRequestWithContext(ctx, httpMethodPost, keysURL, nil)
 	if err != nil {
@@ -274,7 +317,7 @@ func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountNam
 	}
 
 	httpReq.Header.Set("Accept", consoleContentType)
-	httpReq.Header.Set("x-access-token", c.token)
+	httpReq.Header.Set("x-access-token", c.getToken())
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -301,15 +344,13 @@ func (c *ConsoleClient) GenerateConsoleAccessKey(ctx context.Context, accountNam
 	return &result, nil
 }
 
-// GetConsoleAccount retrieves Console account details
-func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName string) (map[string]interface{}, error) {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return nil, err
-		}
+// GetConsoleAccount retrieves Console account details.
+func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName string) (*ConsoleAccountGetResponse, error) {
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return nil, err
 	}
 
-	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, accountName)
+	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, url.PathEscape(accountName))
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", accountURL, nil)
 	if err != nil {
@@ -317,7 +358,7 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 	}
 
 	httpReq.Header.Set("Accept", consoleContentType)
-	httpReq.Header.Set("x-access-token", c.token)
+	httpReq.Header.Set("x-access-token", c.getToken())
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {
@@ -333,31 +374,32 @@ func (c *ConsoleClient) GetConsoleAccount(ctx context.Context, accountName strin
 	}
 
 	if resp.StatusCode == 404 {
-		return nil, nil // Account doesn't exist
+		return nil, nil
 	}
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var result map[string]interface{}
+	var result ConsoleAccountGetResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return result, nil
+	return &result, nil
 }
 
-// DeleteConsoleAccount deletes a Console account (two-step process)
+// DeleteConsoleAccount deletes a Console account (two-step: account + user).
 func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName string) error {
-	if c.token == "" {
-		if err := c.Authenticate(ctx); err != nil {
-			return err
-		}
+	if err := c.ensureAuthenticated(ctx); err != nil {
+		return err
 	}
 
+	token := c.getToken()
+
 	// Step 1: Delete account
-	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, accountName)
+	escapedName := url.PathEscape(accountName)
+	accountURL := fmt.Sprintf("%s%s/%s", c.Endpoint, consoleAccountPath, escapedName)
 
 	req1, err := http.NewRequestWithContext(ctx, "DELETE", accountURL, nil)
 	if err != nil {
@@ -365,7 +407,7 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}
 
 	req1.Header.Set("Accept", "*/*")
-	req1.Header.Set("x-access-token", c.token)
+	req1.Header.Set("x-access-token", token)
 
 	resp1, err := c.HTTPClient.Do(req1)
 	if err != nil {
@@ -376,12 +418,15 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}()
 
 	if resp1.StatusCode != 200 && resp1.StatusCode != 204 && resp1.StatusCode != 404 {
-		body, _ := io.ReadAll(resp1.Body)
+		body, err := io.ReadAll(resp1.Body)
+		if err != nil {
+			return fmt.Errorf("account delete failed with status %d (body unreadable: %w)", resp1.StatusCode, err)
+		}
 		return fmt.Errorf("account delete failed with status %d: %s", resp1.StatusCode, string(body))
 	}
 
 	// Step 2: Delete user
-	userURL := fmt.Sprintf("%s%s/%s/user", c.Endpoint, consoleAccountPath, accountName)
+	userURL := fmt.Sprintf("%s%s/%s/user", c.Endpoint, consoleAccountPath, escapedName)
 
 	req2, err := http.NewRequestWithContext(ctx, "DELETE", userURL, nil)
 	if err != nil {
@@ -389,7 +434,7 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}
 
 	req2.Header.Set("Accept", "*/*")
-	req2.Header.Set("x-access-token", c.token)
+	req2.Header.Set("x-access-token", token)
 
 	resp2, err := c.HTTPClient.Do(req2)
 	if err != nil {
@@ -400,7 +445,10 @@ func (c *ConsoleClient) DeleteConsoleAccount(ctx context.Context, accountName st
 	}()
 
 	if resp2.StatusCode != 200 && resp2.StatusCode != 204 && resp2.StatusCode != 404 {
-		body, _ := io.ReadAll(resp2.Body)
+		body, err := io.ReadAll(resp2.Body)
+		if err != nil {
+			return fmt.Errorf("user delete failed with status %d (body unreadable: %w)", resp2.StatusCode, err)
+		}
 		return fmt.Errorf("user delete failed with status %d: %s", resp2.StatusCode, string(body))
 	}
 

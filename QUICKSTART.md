@@ -14,7 +14,7 @@ This guide will help you get started with the Scality OpenTofu/Terraform provide
 ## Step 1: Build the Provider
 
 ```bash
-cd /home/cyrus/Documents/Development/Scality/Terraform/Providers/terraform-provider-scality
+cd /path/to/repo
 make build
 ```
 
@@ -263,12 +263,12 @@ output "console_secret_key" {
 
 | Feature | `scality_account` (IAM) | `scality_console_account` (Console) |
 |---------|-------------------------|-------------------------------------|
-| **Authentication** | AWS Signature V4 | JWT Token |
-| **Account Creation** | Standard | Without password (security best practice) |
-| **Credentials** | S3 access keys | Persistent S3 access keys |
-| **Token Caching** | N/A | 23.5 hours |
-| **Deletion** | Single step | Two-step (account + user) |
-| **Use Case** | IAM-style management | Console UI integration |
+| Authentication | AWS Signature V4 | JWT Token |
+| Account Creation | Standard | Without password (security best practice) |
+| Credentials | S3 access keys | Persistent S3 access keys |
+| Token Caching | N/A | 23.5 hours |
+| Deletion | Single step | Two-step (account + user) |
+| Use Case | IAM-style management | Console UI integration |
 
 ## Common Tasks
 
@@ -293,21 +293,25 @@ resource "scality_account" "accounts" {
 terraform import scality_account.existing existing-account-name
 ```
 
-### Updating Account Email
+### Changing Account Attributes
+
+All attribute changes force resource replacement (destroy + recreate). For example, changing the email:
 
 ```hcl
 resource "scality_account" "my_account" {
   name          = "my-account"
-  email_address = "new-email@example.com"  # Changed
+  email_address = "new-email@example.com"  # Changed - forces replacement
   quota_max     = 1000000000
 }
 ```
 
 Then:
 ```bash
-terraform plan
+terraform plan   # Shows: destroy + create
 terraform apply
 ```
+
+**Note**: This will destroy and recreate the account, generating new S3 credentials.
 
 ## Troubleshooting
 
@@ -350,3 +354,4 @@ This means the account has buckets, users, or policies. You must:
 - Review the examples in the `examples/` directory
 - Ensure your Scality API is accessible and credentials are valid
 - Check the Terraform logs: `TF_LOG=DEBUG terraform apply`
+
