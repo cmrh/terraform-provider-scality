@@ -3,6 +3,7 @@ package bucketreplication
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -251,6 +252,12 @@ func (r *BucketReplicationResource) Delete(ctx context.Context, req resource.Del
 		data.Bucket.ValueString(),
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			tflog.Warn(ctx, "Bucket or account already removed, skipping replication delete", map[string]interface{}{
+				"bucket": data.Bucket.ValueString(),
+			})
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete bucket replication: %s", err))
 		return
 	}
