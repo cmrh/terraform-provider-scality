@@ -77,18 +77,39 @@ jobs:
           CGO_ENABLED: 0
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          ARCHIVE_NAME=terraform-provider-scality_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}
           BINARY_NAME=terraform-provider-scality_${VERSION}
-
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
-
           go build -ldflags="-s -w -X main.version=${VERSION}" -o ${BINARY_NAME}
+          echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
+          echo "ARCHIVE_NAME=terraform-provider-scality_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}" >> $GITHUB_ENV
 
-          zip ${ARCHIVE_NAME}.zip ${BINARY_NAME}
-          rm ${BINARY_NAME}
-          echo "ASSET=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
+      - name: Create zip archive
+        run: |
+          go run <<'GOEOF' "${{ env.ARCHIVE_NAME }}.zip" "${{ env.BINARY_NAME }}"
+          package main
+
+          import (
+            "archive/zip"
+            "io"
+            "os"
+            "path/filepath"
+          )
+
+          func main() {
+            zf, _ := os.Create(os.Args[1])
+            defer zf.Close()
+            w := zip.NewWriter(zf)
+            defer w.Close()
+            src, _ := os.Open(os.Args[2])
+            defer src.Close()
+            dst, _ := w.Create(filepath.Base(os.Args[2]))
+            io.Copy(dst, src)
+          }
+          GOEOF
+          rm ${{ env.BINARY_NAME }}
+          echo "ASSET=${{ env.ARCHIVE_NAME }}.zip" >> $GITHUB_ENV
 
       - name: Generate SHA256 checksum
         run: |
