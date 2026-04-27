@@ -3,6 +3,7 @@ package useraccesskey
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -199,6 +200,13 @@ func (r *UserAccessKeyResource) Delete(ctx context.Context, req resource.DeleteR
 		data.AccessKeyID.ValueString(),
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			tflog.Warn(ctx, "Access key already removed, skipping delete", map[string]interface{}{
+				"username":      data.Username.ValueString(),
+				"access_key_id": data.AccessKeyID.ValueString(),
+			})
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete access key: %s", err))
 		return
 	}

@@ -211,6 +211,12 @@ func (r *AccountAccessKeyResource) Delete(ctx context.Context, req resource.Dele
 		data.ID.ValueString(),
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			tflog.Warn(ctx, "Access key already removed, skipping delete", map[string]interface{}{
+				"access_key_id": data.ID.ValueString(),
+			})
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete access key: %s", err))
 		return
 	}
