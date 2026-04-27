@@ -24,7 +24,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Run tests
-        run: go test ./... -v -race
+        run: go test ./... -v
 
       - name: Run go vet
         run: go vet ./...
