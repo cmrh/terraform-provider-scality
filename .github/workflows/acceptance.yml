@@ -9,7 +9,7 @@ on:
 jobs:
   acceptance:
     name: Acceptance Tests
-    runs-on: self-hosted
+    runs-on: self-host-cm-tf-provider
     timeout-minutes: 15
     steps:
       - name: Checkout code

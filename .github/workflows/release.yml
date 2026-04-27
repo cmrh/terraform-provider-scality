@@ -13,7 +13,7 @@ permissions:
 jobs:
   test:
     name: Run Tests
-    runs-on: self-hosted
+    runs-on: self-host-cm-tf-provider
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
   build:
     name: Build Release Binaries
     needs: test
-    runs-on: self-hosted
+    runs-on: self-host-cm-tf-provider
     strategy:
       matrix:
         include:
@@ -129,7 +129,7 @@ jobs:
   release-manifest:
     name: Generate Release Manifest
     needs: build
-    runs-on: self-hosted
+    runs-on: self-host-cm-tf-provider
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
