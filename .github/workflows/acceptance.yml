@@ -21,7 +21,14 @@ jobs:
           go-version-file: go.mod
 
       - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@v1
+        run: |
+          TOFU_VERSION="1.9.0"
+          curl -fsSL "https://get.opentofu.org/tofu/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_amd64.tar.gz" \
+            -o tofu.tar.gz
+          tar -xzf tofu.tar.gz tofu
+          mv tofu /usr/local/bin/tofu
+          rm tofu.tar.gz
+          tofu version
 
       - name: Download dependencies
         run: go mod download
