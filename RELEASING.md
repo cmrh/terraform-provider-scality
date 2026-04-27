@@ -191,7 +191,7 @@ Both registries auto-discover releases from GitHub — no manual upload needed. 
 - Release artifacts must include signed SHA256SUMS
 - GPG public key must be registered with the registry
 
-The provider is published under `scality/scality` in both registries. Users consume it as:
+The provider is published under `scality/scality` in both registries. Users use it as:
 
 ```hcl
 terraform {
