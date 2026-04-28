@@ -52,7 +52,6 @@ internal/
 │   ├── s3_tagging.go           # Get/Put/DeleteBucketTagging
 │   ├── s3_policy.go            # Get/Put/DeleteBucketPolicy (JSON, not XML)
 │   ├── s3_encryption.go        # Get/Put/DeleteBucketEncryption
-│   ├── s3_acl.go               # Get/PutBucketACL (canned ACL via x-amz-acl header)
 │   ├── s3_lifecycle.go         # Get/Put/DeleteBucketLifecycle
 │   ├── s3_object_lock.go       # Get/PutObjectLockConfiguration
 │   └── s3_replication.go       # Get/Put/DeleteBucketReplication
@@ -67,7 +66,6 @@ internal/
     ├── bucket/                 # scality_bucket
     ├── bucket_policy/          # scality_bucket_policy
     ├── bucket_encryption/      # scality_bucket_encryption
-    ├── bucket_acl/             # scality_bucket_acl
     ├── bucket_lifecycle/       # scality_bucket_lifecycle
     ├── bucket_object_lock/     # scality_bucket_object_lock
     ├── bucket_replication/     # scality_bucket_replication
@@ -91,7 +89,7 @@ Each resource is a package with:
 | Client | Auth | Wire Format | Used By |
 |--------|------|-------------|---------|
 | `IAMClient` | SigV4 (service `iam`) | form-encoded actions | account, user, user_access_key, user_policy, group, group_membership, iam_policy, iam_role, iam_role_policy_attachment |
-| `S3Client` | SigV4 (service `s3`) | XML (JSON for bucket policy) | bucket, bucket_acl, bucket_encryption, bucket_lifecycle, bucket_object_lock, bucket_policy, bucket_replication |
+| `S3Client` | SigV4 (service `s3`) | XML (JSON for bucket policy) | bucket, bucket_encryption, bucket_lifecycle, bucket_object_lock, bucket_policy, bucket_replication |
 | `ConsoleClient` | JWT (`x-access-token` header) | JSON/REST | console_account, account_access_key |
 
 The provider bundles all three in `ProviderClients`. Each resource extracts the client it needs in its `Configure` method.

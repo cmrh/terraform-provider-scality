@@ -53,6 +53,24 @@ resource "scality_bucket" "test" {
 `, name)
 }
 
+func testAccBucketLifecycleConfig(name string, days int) string {
+	return testAccBucketLifecycleBase(name) + fmt.Sprintf(`
+resource "scality_bucket_lifecycle" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+
+  rule {
+    id              = "expire-objects"
+    status          = "Enabled"
+    expiration_days = %d
+  }
+
+  depends_on = [scality_user_policy.test]
+}
+`, days)
+}
+
 func TestAccBucketLifecycle_basic(t *testing.T) {
 	name := acctest.RandomName("acctest")
 
@@ -82,6 +100,43 @@ resource "scality_bucket_lifecycle" "test" {
 					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.id", "expire-30d"),
 					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.status", "Enabled"),
 					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.expiration_days", "30"),
+				),
+			},
+			{
+				ResourceName:                         "scality_bucket_lifecycle.test",
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc("scality_bucket_lifecycle.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
+			},
+		},
+	})
+}
+
+func TestAccBucketLifecycle_update(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_lifecycle"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketLifecycleConfig(name, 30),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.id", "expire-objects"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.status", "Enabled"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.expiration_days", "30"),
+				),
+			},
+			{
+				Config: testAccBucketLifecycleConfig(name, 90),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.id", "expire-objects"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.status", "Enabled"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.expiration_days", "90"),
 				),
 			},
 		},

@@ -67,6 +67,13 @@ resource "scality_bucket" "test" {
 					resource.TestCheckResourceAttr("scality_bucket.test", "bucket", name+"-bucket"),
 				),
 			},
+			{
+				ResourceName:                         "scality_bucket.test",
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc("scality_bucket.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
+			},
 		},
 	})
 }

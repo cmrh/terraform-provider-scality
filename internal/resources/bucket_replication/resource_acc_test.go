@@ -10,22 +10,21 @@ import (
 )
 
 func testAccCRRConfig(name string) string {
-	return acctest.ProviderBlock() + acctest.DestProviderBlock() + fmt.Sprintf(`
-resource "scality_console_account" "source" {
-  account_name             = "%[1]s-src"
-  email                    = "%[1]s-src@test.local"
-  generate_random_password = true
+	return acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_account" "source" {
+  name          = "%[1]s-src"
+  email_address = "%[1]s-src@test.local"
 }
 
 resource "scality_user" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
   username           = "operator"
 }
 
 resource "scality_user_policy" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
   username           = scality_user.source.username
   policy_name        = "full-access"
   policy_document    = jsonencode({
@@ -39,34 +38,30 @@ resource "scality_user_policy" "source" {
 }
 
 resource "scality_user_access_key" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
   username           = scality_user.source.username
 }
 
 resource "scality_account_access_key" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
 }
 
-resource "scality_console_account" "dest" {
-  provider                 = scality.dest
-  account_name             = "%[1]s-dst"
-  email                    = "%[1]s-dst@test.local"
-  generate_random_password = true
+resource "scality_account" "dest" {
+  name          = "%[1]s-dst"
+  email_address = "%[1]s-dst@test.local"
 }
 
 resource "scality_user" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
   username           = "operator"
 }
 
 resource "scality_user_policy" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
   username           = scality_user.dest.username
   policy_name        = "full-access"
   policy_document    = jsonencode({
@@ -80,16 +75,14 @@ resource "scality_user_policy" "dest" {
 }
 
 resource "scality_user_access_key" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
   username           = scality_user.dest.username
 }
 
 resource "scality_account_access_key" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
 }
 
 resource "scality_bucket" "source" {
@@ -102,7 +95,6 @@ resource "scality_bucket" "source" {
 }
 
 resource "scality_bucket" "dest" {
-  provider           = scality.dest
   account_access_key = scality_account_access_key.dest.access_key
   account_secret_key = scality_account_access_key.dest.secret_key
   bucket             = "%[1]s-dst"
@@ -112,8 +104,8 @@ resource "scality_bucket" "dest" {
 }
 
 resource "scality_iam_policy" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
   policy_name        = "crr-policy"
   policy_document    = jsonencode({
     Version = "2012-10-17"
@@ -138,9 +130,8 @@ resource "scality_iam_policy" "source" {
 }
 
 resource "scality_iam_policy" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
   policy_name        = "crr-policy"
   policy_document    = jsonencode({
     Version = "2012-10-17"
@@ -165,8 +156,8 @@ resource "scality_iam_policy" "dest" {
 }
 
 resource "scality_iam_role" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
   role_name          = "crr-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -179,9 +170,8 @@ resource "scality_iam_role" "source" {
 }
 
 resource "scality_iam_role" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
   role_name          = "crr-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -194,16 +184,15 @@ resource "scality_iam_role" "dest" {
 }
 
 resource "scality_iam_role_policy_attachment" "source" {
-  account_access_key = scality_console_account.source.access_key
-  account_secret_key = scality_console_account.source.secret_key
+  account_access_key = scality_account.source.access_key
+  account_secret_key = scality_account.source.secret_key
   role_name          = scality_iam_role.source.role_name
   policy_arn         = scality_iam_policy.source.arn
 }
 
 resource "scality_iam_role_policy_attachment" "dest" {
-  provider           = scality.dest
-  account_access_key = scality_console_account.dest.access_key
-  account_secret_key = scality_console_account.dest.secret_key
+  account_access_key = scality_account.dest.access_key
+  account_secret_key = scality_account.dest.secret_key
   role_name          = scality_iam_role.dest.role_name
   policy_arn         = scality_iam_policy.dest.arn
 }
@@ -232,7 +221,7 @@ func TestAccBucketReplication_crr(t *testing.T) {
 	name := acctest.RandomName("acctest")
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheckCRR(t) },
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
 		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_replication"),
 		Steps: []resource.TestStep{
@@ -243,8 +232,8 @@ func TestAccBucketReplication_crr(t *testing.T) {
 					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "role"),
 					resource.TestCheckResourceAttr("scality_bucket_replication.test", "rule.0.status", "Enabled"),
 					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "rule.0.destination_bucket"),
-					resource.TestCheckResourceAttrSet("scality_console_account.source", "access_key"),
-					resource.TestCheckResourceAttrSet("scality_console_account.dest", "access_key"),
+					resource.TestCheckResourceAttrSet("scality_account.source", "access_key"),
+					resource.TestCheckResourceAttrSet("scality_account.dest", "access_key"),
 					resource.TestCheckResourceAttrSet("scality_iam_role.source", "arn"),
 					resource.TestCheckResourceAttrSet("scality_iam_role.dest", "arn"),
 				),

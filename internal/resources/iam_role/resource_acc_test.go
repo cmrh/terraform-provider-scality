@@ -38,6 +38,14 @@ resource "scality_iam_role" "test" {
 					resource.TestCheckResourceAttrSet(resourceName, "arn"),
 				),
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc(resourceName, "role_name"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "role_name",
+				ImportStateVerifyIgnore:              []string{"assume_role_policy"},
+			},
 		},
 	})
 }

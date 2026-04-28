@@ -44,7 +44,6 @@ You only need to configure the APIs you use. An IAM endpoint alone is sufficient
 | [scality_bucket](scality_bucket.md) | S3 bucket with versioning and tags |
 | [scality_bucket_policy](scality_bucket_policy.md) | JSON bucket policy |
 | [scality_bucket_encryption](scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
-| [scality_bucket_acl](scality_bucket_acl.md) | Canned ACL |
 | [scality_bucket_lifecycle](scality_bucket_lifecycle.md) | Object lifecycle rules |
 | [scality_bucket_object_lock](scality_bucket_object_lock.md) | Object lock retention |
 | [scality_bucket_replication](scality_bucket_replication.md) | Cross-bucket replication |

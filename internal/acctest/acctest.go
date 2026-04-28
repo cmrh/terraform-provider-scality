@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -102,6 +103,23 @@ provider "scality" {
 	)
 }
 
+func ImportStateIdFunc(resourceName string, idAttrs ...string) resource.ImportStateIdFunc {
+	return func(s *terraform.State) (string, error) {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("resource not found: %s", resourceName)
+		}
+		parts := []string{
+			rs.Primary.Attributes["account_access_key"],
+			rs.Primary.Attributes["account_secret_key"],
+		}
+		for _, attr := range idAttrs {
+			parts = append(parts, rs.Primary.Attributes[attr])
+		}
+		return strings.Join(parts, ":"), nil
+	}
+}
+
 func CheckResourceDestroyed(resourceType string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		ctx := context.Background()
@@ -129,27 +147,60 @@ func CheckResourceDestroyed(resourceType string) resource.TestCheckFunc {
 				}
 
 			case "scality_console_account":
-				consoleClient := client.NewConsoleClient(
-					os.Getenv("SCALITY_CONSOLE_ENDPOINT"),
-					os.Getenv("SCALITY_CONSOLE_USERNAME"),
-					os.Getenv("SCALITY_CONSOLE_PASSWORD"),
-					true,
-				)
-				name := rs.Primary.Attributes["name"]
-				acct, err := consoleClient.GetConsoleAccount(ctx, name)
-				if err != nil {
-					return fmt.Errorf("error checking console account %s: %w", name, err)
-				}
-				if acct != nil {
-					return fmt.Errorf("console account %s still exists after destroy", name)
+				if err := checkConsoleAccountDestroyed(ctx, rs.Primary.Attributes["account_name"]); err != nil {
+					return err
 				}
 
 			default:
-				// Sub-resources (users, buckets, policies, etc.) are destroyed
-				// along with their parent account. We can't verify via API since
-				// the account credentials are already gone by this point.
+				if err := checkParentAccountsDestroyed(ctx, s); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
 	}
+}
+
+func checkConsoleAccountDestroyed(ctx context.Context, name string) error {
+	consoleClient := client.NewConsoleClient(
+		os.Getenv("SCALITY_CONSOLE_ENDPOINT"),
+		os.Getenv("SCALITY_CONSOLE_USERNAME"),
+		os.Getenv("SCALITY_CONSOLE_PASSWORD"),
+		true,
+	)
+	acct, err := consoleClient.GetConsoleAccount(ctx, name)
+	if err != nil {
+		return fmt.Errorf("error checking console account %s: %w", name, err)
+	}
+	if acct != nil {
+		return fmt.Errorf("console account %s still exists after destroy", name)
+	}
+	return nil
+}
+
+func checkParentAccountsDestroyed(ctx context.Context, s *terraform.State) error {
+	for _, rs := range s.RootModule().Resources {
+		switch rs.Type {
+		case "scality_console_account":
+			if err := checkConsoleAccountDestroyed(ctx, rs.Primary.Attributes["account_name"]); err != nil {
+				return err
+			}
+		case "scality_account":
+			iamClient := client.NewIAMClient(
+				os.Getenv("SCALITY_ENDPOINT"),
+				os.Getenv("SCALITY_ACCESS_KEY"),
+				os.Getenv("SCALITY_SECRET_KEY"),
+				true,
+			)
+			name := rs.Primary.Attributes["name"]
+			acct, err := iamClient.GetAccount(ctx, name)
+			if err != nil {
+				return fmt.Errorf("error checking account %s: %w", name, err)
+			}
+			if acct != nil {
+				return fmt.Errorf("account %s still exists after destroy", name)
+			}
+		}
+	}
+	return nil
 }

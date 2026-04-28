@@ -264,5 +264,16 @@ func (r *BucketReplicationResource) Delete(ctx context.Context, req resource.Del
 }
 
 func (r *BucketReplicationResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("bucket"), req, resp)
+	parts := strings.SplitN(req.ID, ":", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			"Import ID must be in format: ACCESS_KEY:SECRET_KEY:BUCKET_NAME",
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), parts[2])...)
 }

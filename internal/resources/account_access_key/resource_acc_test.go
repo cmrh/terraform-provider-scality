@@ -38,6 +38,13 @@ resource "scality_account_access_key" "test" {
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 				),
 			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateIdFunc:       acctest.ImportStateIdFunc(resourceName, "id"),
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"secret_key", "create_date"},
+			},
 		},
 	})
 }

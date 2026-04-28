@@ -42,6 +42,14 @@ func TestAccIAMPolicy_basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "arn"),
 				),
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc(resourceName, "arn"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "arn",
+				ImportStateVerifyIgnore:              []string{"policy_document"},
+			},
 		},
 	})
 }
