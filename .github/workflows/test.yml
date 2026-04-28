@@ -46,6 +46,7 @@ jobs:
 
   build:
     name: Build
+    if: github.event_name == 'push'
     runs-on: self-host-cm-tf-provider
     strategy:
       matrix:
