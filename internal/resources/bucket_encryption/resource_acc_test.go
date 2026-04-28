@@ -96,9 +96,9 @@ resource "scality_bucket_encryption" "test" {
 			{
 				ResourceName:                         "scality_bucket_encryption.test",
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc("scality_bucket_encryption.test", "bucket"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "bucket",
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc("scality_bucket_encryption.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
 			},
 		},
 	})

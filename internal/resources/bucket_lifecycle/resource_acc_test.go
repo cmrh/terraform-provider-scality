@@ -95,19 +95,19 @@ resource "scality_bucket_lifecycle" "test" {
   depends_on = [scality_user_policy.test]
 }
 `,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "bucket", name+"-bucket"),
-				resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.id", "expire-30d"),
-				resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.status", "Enabled"),
-				resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.expiration_days", "30"),
-			),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.id", "expire-30d"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.status", "Enabled"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.expiration_days", "30"),
+				),
 			},
 			{
 				ResourceName:                         "scality_bucket_lifecycle.test",
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc("scality_bucket_lifecycle.test", "bucket"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "bucket",
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc("scality_bucket_lifecycle.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
 			},
 		},
 	})

@@ -42,9 +42,9 @@ resource "scality_user" "test" {
 			{
 				ResourceName:                         resourceName,
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc(resourceName, "username"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "username",
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc(resourceName, "username"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "username",
 			},
 		},
 	})

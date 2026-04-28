@@ -47,10 +47,10 @@ resource "scality_user_access_key" "test" {
 			{
 				ResourceName:                         resourceName,
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc(resourceName, "username", "access_key_id"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "access_key_id",
-				ImportStateVerifyIgnore:               []string{"secret_access_key"},
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc(resourceName, "username", "access_key_id"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "access_key_id",
+				ImportStateVerifyIgnore:              []string{"secret_access_key"},
 			},
 		},
 	})

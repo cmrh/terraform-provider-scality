@@ -95,9 +95,9 @@ resource "scality_bucket_object_lock" "test" {
 			{
 				ResourceName:                         "scality_bucket_object_lock.test",
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc("scality_bucket_object_lock.test", "bucket"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "bucket",
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc("scality_bucket_object_lock.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
 			},
 		},
 	})

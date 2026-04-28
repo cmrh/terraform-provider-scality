@@ -108,10 +108,10 @@ resource "scality_bucket_policy" "test" {
 			{
 				ResourceName:                         "scality_bucket_policy.test",
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc("scality_bucket_policy.test", "bucket"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "bucket",
-				ImportStateVerifyIgnore:               []string{"policy"},
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc("scality_bucket_policy.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
+				ImportStateVerifyIgnore:              []string{"policy"},
 			},
 		},
 	})

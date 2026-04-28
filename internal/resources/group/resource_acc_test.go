@@ -42,9 +42,9 @@ resource "scality_group" "test" {
 			{
 				ResourceName:                         resourceName,
 				ImportState:                          true,
-				ImportStateIdFunc:                     acctest.ImportStateIdFunc(resourceName, "group_name"),
-				ImportStateVerify:                     true,
-				ImportStateVerifyIdentifierAttribute:  "group_name",
+				ImportStateIdFunc:                    acctest.ImportStateIdFunc(resourceName, "group_name"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "group_name",
 			},
 		},
 	})
