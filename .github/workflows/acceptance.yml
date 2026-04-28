@@ -28,6 +28,7 @@ jobs:
           TF_ACC: 1
           TF_ACC_TERRAFORM_PATH: /usr/bin/tofu
           TF_ACC_PROVIDER_NAMESPACE: scality
+          SCALITY_INSECURE_SKIP_VERIFY: "true"
           SCALITY_ENDPOINT: ${{ secrets.SCALITY_ENDPOINT }}
           SCALITY_ACCESS_KEY: ${{ secrets.SCALITY_ACCESS_KEY }}
           SCALITY_SECRET_KEY: ${{ secrets.SCALITY_SECRET_KEY }}
