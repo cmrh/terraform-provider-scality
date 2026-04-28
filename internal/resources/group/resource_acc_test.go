@@ -39,6 +39,13 @@ resource "scality_group" "test" {
 					resource.TestCheckResourceAttrSet(resourceName, "path"),
 				),
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                     acctest.ImportStateIdFunc(resourceName, "group_name"),
+				ImportStateVerify:                     true,
+				ImportStateVerifyIdentifierAttribute:  "group_name",
+			},
 		},
 	})
 }

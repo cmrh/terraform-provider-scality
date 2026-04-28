@@ -133,10 +133,6 @@ func TestSchemaValidatorsWired(t *testing.T) {
 		// --- bucket ---
 		{"scality_bucket", "bucket", "string", 2},
 
-		// --- bucket_acl ---
-		{"scality_bucket_acl", "bucket", "string", 2},
-		{"scality_bucket_acl", "acl", "string", 1},
-
 		// --- bucket_encryption ---
 		{"scality_bucket_encryption", "bucket", "string", 2},
 		{"scality_bucket_encryption", "sse_algorithm", "string", 1},

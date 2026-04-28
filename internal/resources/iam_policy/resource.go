@@ -3,7 +3,9 @@ package iampolicy
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -16,6 +18,7 @@ import (
 )
 
 var _ resource.Resource = &IAMPolicyResource{}
+var _ resource.ResourceWithImportState = &IAMPolicyResource{}
 
 type IAMPolicyResource struct {
 	client *client.IAMClient
@@ -151,6 +154,17 @@ func (r *IAMPolicyResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
+	data.PolicyName = types.StringValue(policy.PolicyName)
+
+	if policy.DefaultVersionId != "" {
+		doc, err := r.client.GetManagedPolicyVersion(ctx, ak, sk, arn, policy.DefaultVersionId)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read IAM policy document: %s", err))
+			return
+		}
+		data.PolicyDocument = types.StringValue(doc)
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -197,7 +211,26 @@ func (r *IAMPolicyResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	err := r.client.DeleteManagedPolicy(ctx, ak, sk, arn)
 	if err != nil {
+		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete IAM policy: %s", err))
 		return
 	}
+}
+
+func (r *IAMPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// ARN contains colons, so use SplitN with 3 — everything after the second : is the ARN
+	parts := strings.SplitN(req.ID, ":", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			"Import ID must be in format: ACCESS_KEY:SECRET_KEY:POLICY_ARN",
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("arn"), parts[2])...)
 }

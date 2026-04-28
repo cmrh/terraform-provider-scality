@@ -225,15 +225,17 @@ func (r *AccountAccessKeyResource) Delete(ctx context.Context, req resource.Dele
 }
 
 func (r *AccountAccessKeyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	parts := strings.SplitN(req.ID, ":", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
 		resp.Diagnostics.AddError(
 			"Invalid Import ID",
-			"Import ID must be in format: access_key_id/secret_key_id (the account credentials used to manage this key)",
+			"Import ID must be in format: ACCOUNT_ACCESS_KEY:ACCOUNT_SECRET_KEY:ACCESS_KEY_ID",
 		)
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key"), parts[2])...)
 }

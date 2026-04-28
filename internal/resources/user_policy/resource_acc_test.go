@@ -26,6 +26,14 @@ func TestAccUserPolicy_basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "policy_document"),
 				),
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                     acctest.ImportStateIdFunc(resourceName, "username", "policy_name"),
+				ImportStateVerify:                     true,
+				ImportStateVerifyIdentifierAttribute:  "username",
+				ImportStateVerifyIgnore:               []string{"policy_document"},
+			},
 		},
 	})
 }

@@ -3,7 +3,9 @@ package iamrolepolicyattachment
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -15,6 +17,7 @@ import (
 )
 
 var _ resource.Resource = &IAMRolePolicyAttachmentResource{}
+var _ resource.ResourceWithImportState = &IAMRolePolicyAttachmentResource{}
 
 type IAMRolePolicyAttachmentResource struct {
 	client *client.IAMClient
@@ -184,7 +187,27 @@ func (r *IAMRolePolicyAttachmentResource) Delete(ctx context.Context, req resour
 		data.PolicyArn.ValueString(),
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to detach policy from role: %s", err))
 		return
 	}
+}
+
+func (r *IAMRolePolicyAttachmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// ARN contains colons, so use SplitN with 4 — everything after the third : is the policy ARN
+	parts := strings.SplitN(req.ID, ":", 4)
+	if len(parts) != 4 || parts[0] == "" || parts[1] == "" || parts[2] == "" || parts[3] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			"Import ID must be in format: ACCESS_KEY:SECRET_KEY:ROLE_NAME:POLICY_ARN",
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), parts[2])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("policy_arn"), parts[3])...)
 }

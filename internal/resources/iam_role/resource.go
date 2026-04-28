@@ -3,7 +3,10 @@ package iamrole
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -16,6 +19,7 @@ import (
 )
 
 var _ resource.Resource = &IAMRoleResource{}
+var _ resource.ResourceWithImportState = &IAMRoleResource{}
 
 type IAMRoleResource struct {
 	client *client.IAMClient
@@ -155,6 +159,14 @@ func (r *IAMRoleResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	data.Arn = types.StringValue(role.Arn)
 
+	if role.AssumeRolePolicyDocument != "" {
+		decoded, err := url.QueryUnescape(role.AssumeRolePolicyDocument)
+		if err != nil {
+			decoded = role.AssumeRolePolicyDocument
+		}
+		data.AssumeRolePolicy = types.StringValue(decoded)
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -182,7 +194,25 @@ func (r *IAMRoleResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	err := r.client.DeleteRole(ctx, ak, sk, data.RoleName.ValueString())
 	if err != nil {
+		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete IAM role: %s", err))
 		return
 	}
+}
+
+func (r *IAMRoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.SplitN(req.ID, ":", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			"Import ID must be in format: ACCESS_KEY:SECRET_KEY:ROLE_NAME",
+		)
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), parts[2])...)
 }

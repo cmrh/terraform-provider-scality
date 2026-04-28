@@ -19,7 +19,6 @@ Manage Scality S3C / RING storage infrastructure with OpenTofu or Terraform. Sup
 | [scality_bucket](docs/scality_bucket.md) | Bucket with versioning and tags |
 | [scality_bucket_policy](docs/scality_bucket_policy.md) | JSON bucket policy |
 | [scality_bucket_encryption](docs/scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
-| [scality_bucket_acl](docs/scality_bucket_acl.md) | Canned ACL |
 | [scality_bucket_lifecycle](docs/scality_bucket_lifecycle.md) | Object lifecycle rules |
 | [scality_bucket_object_lock](docs/scality_bucket_object_lock.md) | Object lock retention |
 | [scality_bucket_replication](docs/scality_bucket_replication.md) | Cross-bucket replication |

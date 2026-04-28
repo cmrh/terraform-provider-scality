@@ -39,6 +39,13 @@ resource "scality_user" "test" {
 					resource.TestCheckResourceAttrSet(resourceName, "path"),
 				),
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                     acctest.ImportStateIdFunc(resourceName, "username"),
+				ImportStateVerify:                     true,
+				ImportStateVerifyIdentifierAttribute:  "username",
+			},
 		},
 	})
 }

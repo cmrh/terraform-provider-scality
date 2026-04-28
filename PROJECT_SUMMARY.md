@@ -21,7 +21,6 @@ Compatible with both [OpenTofu](https://opentofu.org/) (recommended) and Terrafo
 | `scality_bucket` | Bucket with inline versioning and tags. |
 | `scality_bucket_policy` | JSON bucket policy. |
 | `scality_bucket_encryption` | Server-side encryption (AES256 / aws:kms). |
-| `scality_bucket_acl` | Canned ACL. |
 | `scality_bucket_lifecycle` | Object expiration and cleanup rules. |
 | `scality_bucket_object_lock` | WORM retention (governance / compliance). |
 | `scality_bucket_replication` | Cross-bucket replication. |
@@ -51,7 +50,6 @@ terraform-provider-scality/
 │   │   ├── s3_tagging.go           # Get/Put/DeleteBucketTagging
 │   │   ├── s3_policy.go            # Get/Put/DeleteBucketPolicy (JSON)
 │   │   ├── s3_encryption.go        # Get/Put/DeleteBucketEncryption
-│   │   ├── s3_acl.go               # Get/PutBucketACL
 │   │   ├── s3_lifecycle.go         # Get/Put/DeleteBucketLifecycle
 │   │   ├── s3_object_lock.go       # Get/PutObjectLockConfiguration
 │   │   ├── s3_replication.go       # Get/Put/DeleteBucketReplication
@@ -65,7 +63,6 @@ terraform-provider-scality/
 │       ├── bucket/
 │       ├── bucket_policy/
 │       ├── bucket_encryption/
-│       ├── bucket_acl/
 │       ├── bucket_lifecycle/
 │       ├── bucket_object_lock/
 │       ├── bucket_replication/

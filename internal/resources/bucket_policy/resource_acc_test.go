@@ -53,6 +53,27 @@ resource "scality_bucket" "test" {
 `, name)
 }
 
+func testAccBucketPolicyConfig(name, effect string) string {
+	return testAccBucketPolicyBase(name) + fmt.Sprintf(`
+resource "scality_bucket_policy" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+  policy             = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "PublicAccess"
+      Effect    = %q
+      Principal = "*"
+      Action    = "s3:GetObject"
+      Resource  = "arn:aws:s3:::%[2]s-bucket/*"
+    }]
+  })
+  depends_on = [scality_user_policy.test]
+}
+`, effect, name)
+}
+
 func TestAccBucketPolicy_basic(t *testing.T) {
 	name := acctest.RandomName("acctest")
 
@@ -79,6 +100,40 @@ resource "scality_bucket_policy" "test" {
   depends_on = [scality_user_policy.test]
 }
 `, name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_policy.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttrSet("scality_bucket_policy.test", "policy"),
+				),
+			},
+			{
+				ResourceName:                         "scality_bucket_policy.test",
+				ImportState:                          true,
+				ImportStateIdFunc:                     acctest.ImportStateIdFunc("scality_bucket_policy.test", "bucket"),
+				ImportStateVerify:                     true,
+				ImportStateVerifyIdentifierAttribute:  "bucket",
+				ImportStateVerifyIgnore:               []string{"policy"},
+			},
+		},
+	})
+}
+
+func TestAccBucketPolicy_update(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_policy"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketPolicyConfig(name, "Allow"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_policy.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttrSet("scality_bucket_policy.test", "policy"),
+				),
+			},
+			{
+				Config: testAccBucketPolicyConfig(name, "Deny"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("scality_bucket_policy.test", "bucket", name+"-bucket"),
 					resource.TestCheckResourceAttrSet("scality_bucket_policy.test", "policy"),

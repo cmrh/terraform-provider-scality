@@ -53,6 +53,23 @@ resource "scality_bucket" "test" {
 `, name)
 }
 
+func testAccBucketEncryptionConfig(name, algorithm, kmsKeyID string) string {
+	kmsAttr := ""
+	if kmsKeyID != "" {
+		kmsAttr = fmt.Sprintf("\n  kms_master_key_id = %q", kmsKeyID)
+	}
+
+	return testAccBucketEncryptionBase(name) + fmt.Sprintf(`
+resource "scality_bucket_encryption" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+  sse_algorithm      = %q%s
+  depends_on         = [scality_user_policy.test]
+}
+`, algorithm, kmsAttr)
+}
+
 func TestAccBucketEncryption_basic(t *testing.T) {
 	name := acctest.RandomName("acctest")
 
@@ -74,6 +91,40 @@ resource "scality_bucket_encryption" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "bucket", name+"-bucket"),
 					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "sse_algorithm", "AES256"),
+				),
+			},
+			{
+				ResourceName:                         "scality_bucket_encryption.test",
+				ImportState:                          true,
+				ImportStateIdFunc:                     acctest.ImportStateIdFunc("scality_bucket_encryption.test", "bucket"),
+				ImportStateVerify:                     true,
+				ImportStateVerifyIdentifierAttribute:  "bucket",
+			},
+		},
+	})
+}
+
+func TestAccBucketEncryption_update(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_encryption"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketEncryptionConfig(name, "AES256", ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "sse_algorithm", "AES256"),
+				),
+			},
+			{
+				Config: testAccBucketEncryptionConfig(name, "aws:kms", "arn:aws:kms:us-east-1:123456789012:key/test-key-id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "bucket", name+"-bucket"),
+					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "sse_algorithm", "aws:kms"),
+					resource.TestCheckResourceAttr("scality_bucket_encryption.test", "kms_master_key_id", "arn:aws:kms:us-east-1:123456789012:key/test-key-id"),
 				),
 			},
 		},

@@ -8,7 +8,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Added
 - Core resources: `scality_account`, `scality_console_account`, `scality_account_access_key`, `scality_user`, `scality_user_access_key`, `scality_user_policy`, `scality_group`, `scality_group_membership`, `scality_bucket`
-- Bucket sub-resources: `scality_bucket_acl`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, `scality_bucket_object_lock`, `scality_bucket_policy`, `scality_bucket_replication`
+- Bucket sub-resources: `scality_bucket_encryption`, `scality_bucket_lifecycle`, `scality_bucket_object_lock`, `scality_bucket_policy`, `scality_bucket_replication`
 - IAM resources: `scality_iam_policy`, `scality_iam_role`, `scality_iam_role_policy_attachment`
 - Three-client architecture: IAMClient (SigV4), S3Client (SigV4), ConsoleClient (JWT)
 - `insecure_skip_verify` provider attribute for self-signed TLS certificates
