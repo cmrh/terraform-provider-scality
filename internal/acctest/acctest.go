@@ -50,25 +50,6 @@ func PreCheckConsole(t *testing.T) {
 	}
 }
 
-func PreCheckCRR(t *testing.T) {
-	t.Helper()
-	PreCheck(t)
-	PreCheckConsole(t)
-	required := []string{
-		"SCALITY_DEST_ENDPOINT",
-		"SCALITY_DEST_ACCESS_KEY",
-		"SCALITY_DEST_SECRET_KEY",
-		"SCALITY_DEST_CONSOLE_ENDPOINT",
-		"SCALITY_DEST_CONSOLE_USERNAME",
-		"SCALITY_DEST_CONSOLE_PASSWORD",
-	}
-	for _, v := range required {
-		if os.Getenv(v) == "" {
-			t.Skipf("skipping CRR test: %s not set", v)
-		}
-	}
-}
-
 func RandomName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, rand.Intn(99999))
 }
@@ -79,28 +60,6 @@ provider "scality" {
   insecure_skip_verify = true
 }
 `
-}
-
-func DestProviderBlock() string {
-	return fmt.Sprintf(`
-provider "scality" {
-  alias                = "dest"
-  endpoint             = "%s"
-  access_key           = "%s"
-  secret_key           = "%s"
-  console_endpoint     = "%s"
-  console_username     = "%s"
-  console_password     = "%s"
-  insecure_skip_verify = true
-}
-`,
-		os.Getenv("SCALITY_DEST_ENDPOINT"),
-		os.Getenv("SCALITY_DEST_ACCESS_KEY"),
-		os.Getenv("SCALITY_DEST_SECRET_KEY"),
-		os.Getenv("SCALITY_DEST_CONSOLE_ENDPOINT"),
-		os.Getenv("SCALITY_DEST_CONSOLE_USERNAME"),
-		os.Getenv("SCALITY_DEST_CONSOLE_PASSWORD"),
-	)
 }
 
 func ImportStateIdFunc(resourceName string, idAttrs ...string) resource.ImportStateIdFunc {
