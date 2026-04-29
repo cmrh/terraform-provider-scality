@@ -42,17 +42,6 @@ type getPolicyVersionResponse struct {
 	} `xml:"GetPolicyVersionResult"`
 }
 
-type createPolicyVersionResponse struct {
-	XMLName xml.Name `xml:"CreatePolicyVersionResponse"`
-	Result  struct {
-		PolicyVersion struct {
-			Document         string `xml:"Document"`
-			VersionId        string `xml:"VersionId"`
-			IsDefaultVersion bool   `xml:"IsDefaultVersion"`
-		} `xml:"PolicyVersion"`
-	} `xml:"CreatePolicyVersionResult"`
-}
-
 func (c *IAMClient) CreateManagedPolicy(ctx context.Context, accessKey, secretKey, policyName, policyDocument string) (*iamManagedPolicy, error) {
 	params := url.Values{
 		"Action":         {"CreatePolicy"},

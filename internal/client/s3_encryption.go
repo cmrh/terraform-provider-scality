@@ -68,10 +68,7 @@ func (c *S3Client) GetBucketEncryption(ctx context.Context, accessKey, secretKey
 func (c *S3Client) PutBucketEncryption(ctx context.Context, accessKey, secretKey, bucket string, cfg EncryptionConfig) error {
 	config := serverSideEncryptionConfiguration{
 		Rules: []serverSideEncryptionRule{{
-			Apply: serverSideEncryptionByDefault{
-				SSEAlgorithm:   cfg.SSEAlgorithm,
-				KMSMasterKeyID: cfg.KMSMasterKeyID,
-			},
+			Apply: serverSideEncryptionByDefault(cfg),
 		}},
 	}
 
