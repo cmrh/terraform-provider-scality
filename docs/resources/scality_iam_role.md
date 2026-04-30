@@ -1,3 +1,10 @@
+---
+page_title: "scality_iam_role Resource - scality"
+subcategory: "IAM"
+description: |-
+  Manages an IAM role within a Scality account. Roles allow services (such as `backbeat` for replication) to perform actions on behalf of the account.
+---
+
 # scality_iam_role
 
 Manages an IAM role within a Scality account. Roles allow services (such as `backbeat` for replication) to perform actions on behalf of the account.

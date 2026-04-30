@@ -1,3 +1,10 @@
+---
+page_title: "scality_account Resource - scality"
+subcategory: "Accounts"
+description: |-
+  Manages a Scality account via the IAM API (AWS Signature V4 auth). Automatically generates S3 credentials on creation.
+---
+
 # scality_account
 
 Manages a Scality account via the IAM API (AWS Signature V4 auth). Automatically generates S3 credentials on creation.

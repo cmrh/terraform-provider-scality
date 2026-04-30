@@ -1,3 +1,10 @@
+---
+page_title: "scality_bucket_encryption Resource - scality"
+subcategory: "S3 Buckets"
+description: |-
+  Configures server-side encryption for an S3 bucket.
+---
+
 # scality_bucket_encryption
 
 Configures server-side encryption for an S3 bucket.

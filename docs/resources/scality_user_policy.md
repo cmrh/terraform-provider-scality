@@ -1,3 +1,10 @@
+---
+page_title: "scality_user_policy Resource - scality"
+subcategory: "IAM"
+description: |-
+  Attaches an inline IAM policy to a user. Policies define what actions the user is allowed to perform.
+---
+
 # scality_user_policy
 
 Attaches an inline IAM policy to a user. Policies define what actions the user is allowed to perform.

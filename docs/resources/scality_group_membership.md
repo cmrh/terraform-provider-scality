@@ -1,3 +1,10 @@
+---
+page_title: "scality_group_membership Resource - scality"
+subcategory: "IAM"
+description: |-
+  Manages the set of IAM users that belong to a group. This resource owns the full membership list -- users not listed will be removed from the group.
+---
+
 # scality_group_membership
 
 Manages the set of IAM users that belong to a group. This resource owns the full membership list -- users not listed will be removed from the group.

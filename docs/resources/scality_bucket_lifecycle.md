@@ -1,3 +1,10 @@
+---
+page_title: "scality_bucket_lifecycle Resource - scality"
+subcategory: "S3 Buckets"
+description: |-
+  Configures lifecycle rules for an S3 bucket. Rules can expire objects, expire noncurrent versions, and abort incomplete multipart uploads.
+---
+
 # scality_bucket_lifecycle
 
 Configures lifecycle rules for an S3 bucket. Rules can expire objects, expire noncurrent versions, and abort incomplete multipart uploads.

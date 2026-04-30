@@ -1,3 +1,10 @@
+---
+page_title: "scality_bucket_replication Resource - scality"
+subcategory: "S3 Buckets"
+description: |-
+  Configures cross-region replication (CRR) for an S3 bucket. CRR spans two independent Scality clusters and requires versioned buckets on both source and destination, IAM roles with a backbeat trust policy, and managed policies granting replication permissions.
+---
+
 # scality_bucket_replication
 
 Configures cross-region replication (CRR) for an S3 bucket. CRR spans two independent Scality clusters and requires versioned buckets on both source and destination, IAM roles with a backbeat trust policy, and managed policies granting replication permissions.

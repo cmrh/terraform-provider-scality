@@ -1,3 +1,10 @@
+---
+page_title: "scality_account_access_key Resource - scality"
+subcategory: "Accounts"
+description: |-
+  Generates an additional S3 access key pair for an account. Useful for creating a stable credential that Terraform owns exclusively, independent of credentials that may be rotated externally.
+---
+
 # scality_account_access_key
 
 Generates an additional S3 access key pair for an account. Useful for creating a stable credential that Terraform owns exclusively, independent of credentials that may be rotated externally.

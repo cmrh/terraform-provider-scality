@@ -113,4 +113,4 @@ provider_installation {
 
 ## Documentation
 
-See `docs/README.md` for the full resource reference with examples.
+See `docs/index.md` for the full resource reference with examples.
