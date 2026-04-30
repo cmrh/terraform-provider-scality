@@ -33,3 +33,9 @@ resource "scality_iam_role_policy_attachment" "replication" {
 
 - All attributes force resource replacement. To change the attached policy, Terraform will detach the old policy and attach the new one.
 - If the attachment is removed outside of Terraform, the resource will be removed from state on the next plan/apply.
+
+## Import
+
+```bash
+tofu import scality_iam_role_policy_attachment.example "ACCESS_KEY:SECRET_KEY:ROLE_NAME:POLICY_ARN"
+```

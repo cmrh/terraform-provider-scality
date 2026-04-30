@@ -59,3 +59,9 @@ resource "scality_bucket_lifecycle" "data" {
 - Each rule must have at least one action (`expiration_days`, `expiration_date`, `noncurrent_version_expiration_days`, or `abort_incomplete_multipart_upload_days`).
 - All rules are submitted as a single configuration. Updating any rule replaces the entire lifecycle configuration.
 - Deleting this resource removes all lifecycle rules from the bucket.
+
+## Import
+
+```bash
+tofu import scality_bucket_lifecycle.example "ACCESS_KEY:SECRET_KEY:BUCKET_NAME"
+```

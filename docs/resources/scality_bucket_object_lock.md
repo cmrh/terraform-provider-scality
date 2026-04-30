@@ -56,3 +56,9 @@ The bucket must be created with `object_lock_enabled = true`. Object lock can on
 - Specify either `retention_days` or `retention_years`, not both.
 - Deleting this resource removes the default retention configuration but does not disable object lock on the bucket (object lock cannot be disabled once enabled).
 - Objects already locked retain their individual lock settings regardless of changes to the default configuration.
+
+## Import
+
+```bash
+tofu import scality_bucket_object_lock.example "ACCESS_KEY:SECRET_KEY:BUCKET_NAME"
+```

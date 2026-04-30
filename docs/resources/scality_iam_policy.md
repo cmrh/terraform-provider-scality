@@ -49,3 +49,9 @@ resource "scality_iam_policy" "replication" {
 - Updating `policy_document` creates a new policy version via `CreatePolicyVersion`. Scality supports a maximum of 5 policy versions.
 - Changing `policy_name` or account credentials forces resource replacement.
 - The policy must be detached from all roles before it can be deleted. Use `scality_iam_role_policy_attachment` to manage attachments declaratively.
+
+## Import
+
+```bash
+tofu import scality_iam_policy.example "ACCESS_KEY:SECRET_KEY:POLICY_ARN"
+```

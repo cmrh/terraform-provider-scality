@@ -46,3 +46,9 @@ resource "scality_iam_role" "replication" {
 
 - All attributes force resource replacement. Scality's `UpdateRole` API only supports `MaxSessionDuration`, not trust policy changes, so any change requires a destroy-and-recreate.
 - Attached policies must be detached before the role can be deleted. Terraform handles this automatically when `scality_iam_role_policy_attachment` resources reference this role.
+
+## Import
+
+```bash
+tofu import scality_iam_role.example "ACCESS_KEY:SECRET_KEY:ROLE_NAME"
+```

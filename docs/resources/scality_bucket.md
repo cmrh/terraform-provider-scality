@@ -68,3 +68,9 @@ resource "scality_bucket" "data" {
 ```
 
 Without this, `terraform destroy` may remove the user's policy first, leaving Terraform unable to delete the bucket.
+
+## Import
+
+```bash
+tofu import scality_bucket.example "ACCESS_KEY:SECRET_KEY:BUCKET_NAME"
+```

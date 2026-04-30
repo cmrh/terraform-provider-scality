@@ -35,3 +35,9 @@ resource "scality_bucket_encryption" "data" {
 - `AES256` (SSE-S3) works in all deployments.
 - `aws:kms` (SSE-KMS) requires an external KMS server configured on the Scality side. This is uncommon.
 - Deleting this resource removes the encryption configuration from the bucket.
+
+## Import
+
+```bash
+tofu import scality_bucket_encryption.example "ACCESS_KEY:SECRET_KEY:BUCKET_NAME"
+```

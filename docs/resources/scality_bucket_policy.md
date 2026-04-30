@@ -47,3 +47,9 @@ resource "scality_bucket_policy" "allow_user" {
 - The policy document follows the standard AWS IAM policy syntax.
 - Updating the `policy` attribute applies the new policy in-place (no replacement).
 - Deleting this resource removes the bucket policy entirely.
+
+## Import
+
+```bash
+tofu import scality_bucket_policy.example "ACCESS_KEY:SECRET_KEY:BUCKET_NAME"
+```

@@ -47,3 +47,11 @@ output "operator_credentials" {
 
 - The `secret_access_key` cannot be retrieved after creation. If state is lost, create a new key.
 - Protect your state file -- it contains the secret key in plain text.
+
+## Import
+
+```bash
+tofu import scality_user_access_key.example "ACCESS_KEY:SECRET_KEY:USERNAME:ACCESS_KEY_ID"
+```
+
+After import, `secret_access_key` will be unknown (the API does not return secret keys for existing access keys).
