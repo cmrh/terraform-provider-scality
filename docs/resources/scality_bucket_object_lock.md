@@ -1,3 +1,10 @@
+---
+page_title: "scality_bucket_object_lock Resource - scality"
+subcategory: "S3 Buckets"
+description: |-
+  Configures default object lock retention for an S3 bucket. Prevents objects from being deleted or overwritten for a fixed retention period.
+---
+
 # scality_bucket_object_lock
 
 Configures default object lock retention for an S3 bucket. Prevents objects from being deleted or overwritten for a fixed retention period.

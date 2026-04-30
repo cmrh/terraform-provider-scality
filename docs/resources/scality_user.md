@@ -1,3 +1,10 @@
+---
+page_title: "scality_user Resource - scality"
+subcategory: "IAM"
+description: |-
+  Creates an IAM user within a Scality account. Users can be assigned policies and access keys for day-to-day S3 operations.
+---
+
 # scality_user
 
 Creates an IAM user within a Scality account. Users can be assigned policies and access keys for day-to-day S3 operations.

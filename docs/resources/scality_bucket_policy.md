@@ -1,3 +1,10 @@
+---
+page_title: "scality_bucket_policy Resource - scality"
+subcategory: "S3 Buckets"
+description: |-
+  Attaches a JSON bucket policy to an S3 bucket. The policy controls access permissions for the bucket and its objects.
+---
+
 # scality_bucket_policy
 
 Attaches a JSON bucket policy to an S3 bucket. The policy controls access permissions for the bucket and its objects.

@@ -1,3 +1,10 @@
+---
+page_title: "scality_user_access_key Resource - scality"
+subcategory: "IAM"
+description: |-
+  Generates an S3 access key pair for an IAM user. The secret key is only available at creation time and is stored in state.
+---
+
 # scality_user_access_key
 
 Generates an S3 access key pair for an IAM user. The secret key is only available at creation time and is stored in state.

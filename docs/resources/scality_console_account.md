@@ -1,3 +1,10 @@
+---
+page_title: "scality_console_account Resource - scality"
+subcategory: "Accounts"
+description: |-
+  Manages a Scality account via the Console API (JWT auth). Optionally generates a random password for Console UI access. S3 credentials are generated automatically.
+---
+
 # scality_console_account
 
 Manages a Scality account via the Console API (JWT auth). Optionally generates a random password for Console UI access. S3 credentials are generated automatically.

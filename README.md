@@ -8,30 +8,33 @@ Manage Scality S3C / RING storage infrastructure with OpenTofu or Terraform. Sup
 
 | Resource | Description |
 |----------|-------------|
-| [scality_account](docs/scality_account.md) | Account via IAM API (SigV4 auth) |
-| [scality_console_account](docs/scality_console_account.md) | Account via Console API (JWT auth) |
-| [scality_account_access_key](docs/scality_account_access_key.md) | Additional root access key for an account |
+| [scality_account](docs/resources/scality_account.md) | Account via IAM API (SigV4 auth) |
+| [scality_console_account](docs/resources/scality_console_account.md) | Account via Console API (JWT auth) |
+| [scality_account_access_key](docs/resources/scality_account_access_key.md) | Additional root access key for an account |
 
 ### S3 Buckets
 
 | Resource | Description |
 |----------|-------------|
-| [scality_bucket](docs/scality_bucket.md) | Bucket with versioning and tags |
-| [scality_bucket_policy](docs/scality_bucket_policy.md) | JSON bucket policy |
-| [scality_bucket_encryption](docs/scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
-| [scality_bucket_lifecycle](docs/scality_bucket_lifecycle.md) | Object lifecycle rules |
-| [scality_bucket_object_lock](docs/scality_bucket_object_lock.md) | Object lock retention |
-| [scality_bucket_replication](docs/scality_bucket_replication.md) | Cross-bucket replication |
+| [scality_bucket](docs/resources/scality_bucket.md) | Bucket with versioning and tags |
+| [scality_bucket_policy](docs/resources/scality_bucket_policy.md) | JSON bucket policy |
+| [scality_bucket_encryption](docs/resources/scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
+| [scality_bucket_lifecycle](docs/resources/scality_bucket_lifecycle.md) | Object lifecycle rules |
+| [scality_bucket_object_lock](docs/resources/scality_bucket_object_lock.md) | Object lock retention |
+| [scality_bucket_replication](docs/resources/scality_bucket_replication.md) | Cross-bucket replication |
 
 ### IAM
 
 | Resource | Description |
 |----------|-------------|
-| [scality_user](docs/scality_user.md) | IAM user within an account |
-| [scality_user_access_key](docs/scality_user_access_key.md) | Access key for a user |
-| [scality_user_policy](docs/scality_user_policy.md) | Inline policy attached to a user |
-| [scality_group](docs/scality_group.md) | IAM group |
-| [scality_group_membership](docs/scality_group_membership.md) | Group membership |
+| [scality_user](docs/resources/scality_user.md) | IAM user within an account |
+| [scality_user_access_key](docs/resources/scality_user_access_key.md) | Access key for a user |
+| [scality_user_policy](docs/resources/scality_user_policy.md) | Inline policy attached to a user |
+| [scality_group](docs/resources/scality_group.md) | IAM group |
+| [scality_group_membership](docs/resources/scality_group_membership.md) | Group membership |
+| [scality_iam_policy](docs/resources/scality_iam_policy.md) | IAM managed policy (attachable to roles) |
+| [scality_iam_role](docs/resources/scality_iam_role.md) | IAM role with trust policy |
+| [scality_iam_role_policy_attachment](docs/resources/scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
 
 ## Quick Start
 
@@ -120,7 +123,7 @@ provider_installation {
 
 ## Documentation
 
-See [docs/README.md](docs/README.md) for the full resource reference.
+See [docs/index.md](docs/index.md) for the full resource reference.
 
 ## License
 

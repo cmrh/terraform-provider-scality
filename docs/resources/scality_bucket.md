@@ -1,3 +1,10 @@
+---
+page_title: "scality_bucket Resource - scality"
+subcategory: "S3 Buckets"
+description: |-
+  Manages an S3 bucket with optional versioning, object lock, and tags. Uses per-account credentials (not provider-level admin credentials).
+---
+
 # scality_bucket
 
 Manages an S3 bucket with optional versioning, object lock, and tags. Uses per-account credentials (not provider-level admin credentials).

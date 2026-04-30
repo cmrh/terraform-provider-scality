@@ -1,3 +1,10 @@
+---
+page_title: "scality_iam_policy Resource - scality"
+subcategory: "IAM"
+description: |-
+  Manages an IAM managed policy within a Scality account. Managed policies can be attached to multiple roles, unlike inline policies which are embedded directly in a single entity.
+---
+
 # scality_iam_policy
 
 Manages an IAM managed policy within a Scality account. Managed policies can be attached to multiple roles, unlike inline policies which are embedded directly in a single entity.

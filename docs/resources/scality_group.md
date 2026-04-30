@@ -1,3 +1,10 @@
+---
+page_title: "scality_group Resource - scality"
+subcategory: "IAM"
+description: |-
+  Creates an IAM group within a Scality account. Groups let you manage permissions for multiple users collectively.
+---
+
 # scality_group
 
 Creates an IAM group within a Scality account. Groups let you manage permissions for multiple users collectively.

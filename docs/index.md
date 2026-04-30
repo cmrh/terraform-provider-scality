@@ -1,4 +1,11 @@
-# Scality Terraform/OpenTofu Provider
+---
+page_title: "Scality Provider"
+subcategory: ""
+description: |-
+  Terraform/OpenTofu provider for managing Scality S3C / RING storage.
+---
+
+# Scality Provider
 
 Terraform/OpenTofu provider for managing Scality S3C / RING storage. Supports account management, IAM (users, groups, policies), and S3 bucket configuration.
 
@@ -33,33 +40,33 @@ You only need to configure the APIs you use. An IAM endpoint alone is sufficient
 
 | Resource | Description |
 |----------|-------------|
-| [scality_account](scality_account.md) | Account via IAM API (SigV4 auth) |
-| [scality_console_account](scality_console_account.md) | Account via Console API (JWT auth) |
-| [scality_account_access_key](scality_account_access_key.md) | Additional root access key for an account |
+| [scality_account](resources/scality_account.md) | Account via IAM API (SigV4 auth) |
+| [scality_console_account](resources/scality_console_account.md) | Account via Console API (JWT auth) |
+| [scality_account_access_key](resources/scality_account_access_key.md) | Additional root access key for an account |
 
 ### S3 Buckets
 
 | Resource | Description |
 |----------|-------------|
-| [scality_bucket](scality_bucket.md) | S3 bucket with versioning and tags |
-| [scality_bucket_policy](scality_bucket_policy.md) | JSON bucket policy |
-| [scality_bucket_encryption](scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
-| [scality_bucket_lifecycle](scality_bucket_lifecycle.md) | Object lifecycle rules |
-| [scality_bucket_object_lock](scality_bucket_object_lock.md) | Object lock retention |
-| [scality_bucket_replication](scality_bucket_replication.md) | Cross-bucket replication |
+| [scality_bucket](resources/scality_bucket.md) | S3 bucket with versioning and tags |
+| [scality_bucket_policy](resources/scality_bucket_policy.md) | JSON bucket policy |
+| [scality_bucket_encryption](resources/scality_bucket_encryption.md) | Server-side encryption (SSE-S3 / SSE-KMS) |
+| [scality_bucket_lifecycle](resources/scality_bucket_lifecycle.md) | Object lifecycle rules |
+| [scality_bucket_object_lock](resources/scality_bucket_object_lock.md) | Object lock retention |
+| [scality_bucket_replication](resources/scality_bucket_replication.md) | Cross-region replication |
 
 ### IAM
 
 | Resource | Description |
 |----------|-------------|
-| [scality_user](scality_user.md) | IAM user within an account |
-| [scality_user_access_key](scality_user_access_key.md) | Access key for a user |
-| [scality_user_policy](scality_user_policy.md) | Inline policy attached to a user |
-| [scality_group](scality_group.md) | IAM group |
-| [scality_group_membership](scality_group_membership.md) | Group membership (users in a group) |
-| [scality_iam_policy](scality_iam_policy.md) | IAM managed policy (attachable to roles) |
-| [scality_iam_role](scality_iam_role.md) | IAM role with trust policy |
-| [scality_iam_role_policy_attachment](scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
+| [scality_user](resources/scality_user.md) | IAM user within an account |
+| [scality_user_access_key](resources/scality_user_access_key.md) | Access key for a user |
+| [scality_user_policy](resources/scality_user_policy.md) | Inline policy attached to a user |
+| [scality_group](resources/scality_group.md) | IAM group |
+| [scality_group_membership](resources/scality_group_membership.md) | Group membership (users in a group) |
+| [scality_iam_policy](resources/scality_iam_policy.md) | IAM managed policy (attachable to roles) |
+| [scality_iam_role](resources/scality_iam_role.md) | IAM role with trust policy |
+| [scality_iam_role_policy_attachment](resources/scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
 
 ## Credential Pattern
 
@@ -96,7 +103,7 @@ The initial credentials from account creation may be rotated externally. The sec
 
 ## Credential Dependencies
 
-When using IAM user credentials for resources like buckets, encryption, or replication, always declare a `depends_on` pointing at the user's access policy. This ensures Terraform destroys resources in the correct order — removing buckets and other resources before the policy that grants permission to manage them.
+When using IAM user credentials for resources like buckets, encryption, or replication, always declare a `depends_on` pointing at the user's access policy. This ensures Terraform destroys resources in the correct order -- removing buckets and other resources before the policy that grants permission to manage them.
 
 ```hcl
 resource "scality_bucket" "data" {

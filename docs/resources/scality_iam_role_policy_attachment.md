@@ -1,3 +1,10 @@
+---
+page_title: "scality_iam_role_policy_attachment Resource - scality"
+subcategory: "IAM"
+description: |-
+  Attaches an IAM managed policy to an IAM role within a Scality account.
+---
+
 # scality_iam_role_policy_attachment
 
 Attaches an IAM managed policy to an IAM role within a Scality account.
