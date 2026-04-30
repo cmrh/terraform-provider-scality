@@ -44,3 +44,9 @@ resource "scality_user_policy" "s3_access" {
 - Updating the `policy_document` applies the change in-place (PutUserPolicy is an upsert).
 - Changing `username` or `policy_name` forces replacement.
 - The policy document follows standard AWS IAM policy syntax.
+
+## Import
+
+```bash
+tofu import scality_user_policy.example "ACCESS_KEY:SECRET_KEY:USERNAME:POLICY_NAME"
+```

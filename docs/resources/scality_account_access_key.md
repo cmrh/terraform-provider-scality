@@ -53,3 +53,11 @@ output "stable_credentials" {
 - The `secret_key` cannot be retrieved after creation. If state is lost, create a new key.
 - The Read operation preserves state without querying the API (the secret key is not retrievable).
 - Protect your state file -- it contains the secret key in plain text.
+
+## Import
+
+```bash
+tofu import scality_account_access_key.example "ACCOUNT_ACCESS_KEY:ACCOUNT_SECRET_KEY:ACCESS_KEY_ID"
+```
+
+After import, `secret_key` will be unknown (the API does not return secret keys for existing access keys).

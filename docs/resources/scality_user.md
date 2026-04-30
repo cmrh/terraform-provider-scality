@@ -43,3 +43,9 @@ output "user_arn" {
 
 - All arguments force replacement on change -- users cannot be renamed.
 - Delete the user's access keys and policies before deleting the user.
+
+## Import
+
+```bash
+tofu import scality_user.example "ACCESS_KEY:SECRET_KEY:USERNAME"
+```

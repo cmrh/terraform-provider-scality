@@ -37,3 +37,9 @@ resource "scality_group_membership" "developers" {
 
 - This resource is authoritative. It performs set-diff updates: users added to the list are added to the group, users removed from the list are removed from the group.
 - Only one `scality_group_membership` resource should exist per group.
+
+## Import
+
+```bash
+tofu import scality_group_membership.example "ACCESS_KEY:SECRET_KEY:GROUP_NAME"
+```

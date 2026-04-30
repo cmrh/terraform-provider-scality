@@ -323,3 +323,9 @@ resource "scality_bucket_replication" "dest_to_source" {
 - All rules are submitted as a single replication configuration.
 - Deleting this resource removes the replication configuration entirely.
 - The rule `id` is computed by the server if not provided and stored in state to prevent drift.
+
+## Import
+
+```bash
+tofu import scality_bucket_replication.example "ACCESS_KEY:SECRET_KEY:BUCKET_NAME"
+```

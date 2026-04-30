@@ -43,3 +43,9 @@ output "group_arn" {
 
 - Use `scality_group_membership` to add users to the group.
 - Remove all members before deleting a group.
+
+## Import
+
+```bash
+tofu import scality_group.example "ACCESS_KEY:SECRET_KEY:GROUP_NAME"
+```
