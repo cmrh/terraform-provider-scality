@@ -27,6 +27,12 @@ TF_VAR_dest_access_key="<dest-admin-access-key>"
 TF_VAR_dest_secret_key="<dest-admin-secret-key>"
 ```
 
+Export the variables into your shell before running `tofu plan` -- a plain `source .env` only sets them in the current shell, not in tofu's environment:
+
+```bash
+set -a; source .env; set +a
+```
+
 The default provider reads `SCALITY_*` variables automatically. The destination provider uses `TF_VAR_*` variables which Terraform/OpenTofu maps to input variables:
 
 ```hcl
@@ -264,6 +270,69 @@ resource "scality_bucket_replication" "source_to_dest" {
     scality_iam_role_policy_attachment.dest,
   ]
 }
+
+# --- Outputs (for manual verification with the AWS CLI) ---
+
+output "source_bucket" {
+  value = scality_bucket.source.bucket
+}
+
+output "dest_bucket" {
+  value = scality_bucket.dest.bucket
+}
+
+output "source_role_arn" {
+  value = scality_iam_role.source.arn
+}
+
+output "dest_role_arn" {
+  value = scality_iam_role.dest.arn
+}
+
+output "source_user_access_key" {
+  value     = scality_user_access_key.source.access_key_id
+  sensitive = true
+}
+
+output "source_user_secret_key" {
+  value     = scality_user_access_key.source.secret_access_key
+  sensitive = true
+}
+
+output "dest_user_access_key" {
+  value     = scality_user_access_key.dest.access_key_id
+  sensitive = true
+}
+
+output "dest_user_secret_key" {
+  value     = scality_user_access_key.dest.secret_access_key
+  sensitive = true
+}
+```
+
+After `tofu apply`, retrieve the user credentials and verify replication manually:
+
+```bash
+# Read the user keys (sensitive outputs require -raw)
+SOURCE_AK=$(tofu output -raw source_user_access_key)
+SOURCE_SK=$(tofu output -raw source_user_secret_key)
+SOURCE_BUCKET=$(tofu output -raw source_bucket)
+DEST_BUCKET=$(tofu output -raw dest_bucket)
+
+# Upload an object to the source bucket
+AWS_ACCESS_KEY_ID=$SOURCE_AK AWS_SECRET_ACCESS_KEY=$SOURCE_SK \
+  aws --endpoint-url "$SCALITY_ENDPOINT" s3 cp /etc/hostname "s3://$SOURCE_BUCKET/test"
+
+# Verify replication on the destination cluster
+DEST_AK=$(tofu output -raw dest_user_access_key)
+DEST_SK=$(tofu output -raw dest_user_secret_key)
+
+AWS_ACCESS_KEY_ID=$DEST_AK AWS_SECRET_ACCESS_KEY=$DEST_SK \
+  aws --endpoint-url "$TF_VAR_dest_endpoint" s3 ls "s3://$DEST_BUCKET/"
+
+# Inspect the replication config on the source bucket
+AWS_ACCESS_KEY_ID=$SOURCE_AK AWS_SECRET_ACCESS_KEY=$SOURCE_SK \
+  aws --endpoint-url "$SCALITY_ENDPOINT" s3api get-bucket-replication --bucket "$SOURCE_BUCKET"
 ```
 
 ## Bilateral replication
