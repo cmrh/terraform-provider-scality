@@ -2,6 +2,27 @@
 
 Manage Scality S3C / RING storage infrastructure with OpenTofu or Terraform. Supports account management, IAM users/groups/policies, and S3 bucket configuration.
 
+## Installation
+
+```hcl
+terraform {
+  required_providers {
+    scality = {
+      source  = "scality/scality"
+      version = "~> 0.4"
+    }
+  }
+}
+
+provider "scality" {
+  endpoint   = "https://vault.example.com"     # Vault/IAM admin endpoint
+  access_key = var.scality_access_key
+  secret_key = var.scality_secret_key
+}
+```
+
+See [`docs/index.md`](docs/index.md) for the full provider configuration reference, including Console-API auth and the `insecure_skip_verify` option.
+
 ## Resources
 
 ### Accounts
