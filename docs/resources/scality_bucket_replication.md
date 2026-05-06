@@ -106,23 +106,18 @@ resource "scality_iam_policy" "source" {
   policy_name        = "crr-policy"
   policy_document    = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectVersionAcl", "s3:GetObjectTagging", "s3:ReplicateObject", "s3:ReplicateTags", "s3:ReplicateDelete"]
-        Resource = "arn:aws:s3:::${scality_bucket.source.bucket}/*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket", "s3:GetReplicationConfiguration"]
-        Resource = "arn:aws:s3:::${scality_bucket.source.bucket}"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["s3:ReplicateObject", "s3:ReplicateDelete", "s3:ReplicateTags", "s3:PutObject"]
-        Resource = "arn:aws:s3:::${scality_bucket.dest.bucket}/*"
-      },
-    ]
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectVersionAcl",
+        "s3:GetObjectTagging", "s3:ListBucket", "s3:GetReplicationConfiguration",
+        "s3:ReplicateObject", "s3:ReplicateDelete", "s3:ReplicateTags", "s3:PutObject",
+      ]
+      Resource = [
+        "arn:aws:s3:::${scality_bucket.source.bucket}",
+        "arn:aws:s3:::${scality_bucket.source.bucket}/*",
+      ]
+    }]
   })
 }
 
@@ -208,23 +203,18 @@ resource "scality_iam_policy" "dest" {
   policy_name        = "crr-policy"
   policy_document    = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectVersionAcl", "s3:GetObjectTagging", "s3:ReplicateObject", "s3:ReplicateTags", "s3:ReplicateDelete"]
-        Resource = "arn:aws:s3:::${scality_bucket.source.bucket}/*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket", "s3:GetReplicationConfiguration"]
-        Resource = "arn:aws:s3:::${scality_bucket.source.bucket}"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["s3:ReplicateObject", "s3:ReplicateDelete", "s3:ReplicateTags", "s3:PutObject"]
-        Resource = "arn:aws:s3:::${scality_bucket.dest.bucket}/*"
-      },
-    ]
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectVersionAcl",
+        "s3:GetObjectTagging", "s3:ListBucket", "s3:GetReplicationConfiguration",
+        "s3:ReplicateObject", "s3:ReplicateDelete", "s3:ReplicateTags", "s3:PutObject",
+      ]
+      Resource = [
+        "arn:aws:s3:::${scality_bucket.dest.bucket}",
+        "arn:aws:s3:::${scality_bucket.dest.bucket}/*",
+      ]
+    }]
   })
 }
 
@@ -337,7 +327,9 @@ AWS_ACCESS_KEY_ID=$SOURCE_AK AWS_SECRET_ACCESS_KEY=$SOURCE_SK \
 
 ## Bilateral replication
 
-Each bucket can replicate to the other, giving active-active synchronization across both clusters. Add a second `scality_bucket_replication` on the destination side that points back to the source bucket. The same roles and policies cover both directions since they already grant replication permissions on both buckets.
+Each bucket can replicate to the other, giving active-active synchronization across both clusters. Add a second `scality_bucket_replication` on the destination side that points back to the source bucket.
+
+The example policies above are already symmetric (each role has full read + replicate permissions on its own local bucket), so no policy changes are needed -- just reuse the existing roles. If you previously scoped a role's policy to one direction only (read on source, write on dest), expand it to grant both read and write on the role's own local bucket before enabling bilateral.
 
 ```hcl
 resource "scality_bucket_replication" "dest_to_source" {
