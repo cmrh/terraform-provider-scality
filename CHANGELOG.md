@@ -4,6 +4,11 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Added
+- `data.scality_account` data source. Looks up an existing account by name and exposes `id`, `email_address`, `quota_max`, `custom_attributes`, `arn`, `canonical_id`, `create_date`. Does not expose `access_key`/`secret_key` (IAM API returns those only at creation).
+- `data.scality_bucket` data source. Looks up an existing bucket by name within an account and exposes `id`, `arn`, `versioning`, `object_lock_enabled`, `tags`.
+- `docs/data-sources/scality_account.md` and `docs/data-sources/scality_bucket.md`.
+
 ## [0.4.0] - 2026-04-30
 
 First general-availability release. Aside from the doc and CI changes below, the resource set and provider schema match `0.1.0-rc.1`.
