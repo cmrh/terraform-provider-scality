@@ -24,8 +24,8 @@ func NewAccountsDataSource() datasource.DataSource {
 }
 
 type AccountsDataSourceModel struct {
-	ID       types.String              `tfsdk:"id"`
-	Accounts []AccountsListItemModel   `tfsdk:"accounts"`
+	ID       types.String            `tfsdk:"id"`
+	Accounts []AccountsListItemModel `tfsdk:"accounts"`
 }
 
 type AccountsListItemModel struct {

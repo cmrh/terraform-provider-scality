@@ -277,15 +277,15 @@ type AccountCreateResponse struct {
 // AccountData contains account details.
 type AccountData struct {
 	Data struct {
-		ARN              string                 `json:"arn"`
-		CanonicalID      string                 `json:"canonicalId"`
-		ID               string                 `json:"id"`
-		EmailAddress     string                 `json:"emailAddress"`
-		Name             string                 `json:"name"`
-		CreateDate       string                 `json:"createDate"`
-		QuotaMax         int64                  `json:"quotaMax"`
-		AliasList        []string               `json:"aliasList"`
-		OIDCPList        []string               `json:"oidcpList"`
+		ARN              string         `json:"arn"`
+		CanonicalID      string         `json:"canonicalId"`
+		ID               string         `json:"id"`
+		EmailAddress     string         `json:"emailAddress"`
+		Name             string         `json:"name"`
+		CreateDate       string         `json:"createDate"`
+		QuotaMax         int64          `json:"quotaMax"`
+		AliasList        []string       `json:"aliasList"`
+		OIDCPList        []string       `json:"oidcpList"`
 		CustomAttributes map[string]any `json:"customAttributes"`
 	} `json:"data"`
 }

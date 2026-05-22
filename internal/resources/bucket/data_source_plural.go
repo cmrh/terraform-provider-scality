@@ -24,10 +24,10 @@ func NewBucketsDataSource() datasource.DataSource {
 }
 
 type BucketsDataSourceModel struct {
-	ID               types.String            `tfsdk:"id"`
-	AccountAccessKey types.String            `tfsdk:"account_access_key"`
-	AccountSecretKey types.String            `tfsdk:"account_secret_key"`
-	Buckets          []BucketsListItemModel  `tfsdk:"buckets"`
+	ID               types.String           `tfsdk:"id"`
+	AccountAccessKey types.String           `tfsdk:"account_access_key"`
+	AccountSecretKey types.String           `tfsdk:"account_secret_key"`
+	Buckets          []BucketsListItemModel `tfsdk:"buckets"`
 }
 
 type BucketsListItemModel struct {
