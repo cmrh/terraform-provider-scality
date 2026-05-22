@@ -7,7 +7,12 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ### Added
 - `data.scality_account` data source. Looks up an existing account by name and exposes `id`, `email_address`, `quota_max`, `custom_attributes`, `arn`, `canonical_id`, `create_date`. Does not expose `access_key`/`secret_key` (IAM API returns those only at creation).
 - `data.scality_bucket` data source. Looks up an existing bucket by name within an account and exposes `id`, `arn`, `versioning`, `object_lock_enabled`, `tags`.
-- `docs/data-sources/scality_account.md` and `docs/data-sources/scality_bucket.md`.
+- `data.scality_accounts` data source. Lists all accounts in the cluster (paginated under the hood). Returns a `accounts` list of objects with `id`, `name`, `email_address`, `arn`, `canonical_id`, `create_date`, `quota_max`. No `custom_attributes` per entry — use `data.scality_account` with `for_each` for drill-down.
+- `data.scality_buckets` data source. Lists all buckets owned by the supplied account credentials. Returns a `buckets` list of objects with `name`, `arn`, `creation_date`. No versioning/tags/object-lock per entry — use `data.scality_bucket` with `for_each` for drill-down.
+- `docs/data-sources/scality_account.md`, `docs/data-sources/scality_bucket.md`, `docs/data-sources/scality_accounts.md`, `docs/data-sources/scality_buckets.md`.
+
+### Changed
+- Replaced legacy `interface{}` style with `any` in `AccountCreateResponse.AccountData.CustomAttributes` (lint hygiene; no functional change).
 
 ## [0.4.0] - 2026-04-30
 
