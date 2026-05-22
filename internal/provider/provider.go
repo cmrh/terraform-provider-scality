@@ -207,7 +207,9 @@ func (p *ScalityProvider) Resources(ctx context.Context) []func() resource.Resou
 func (p *ScalityProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		account.NewAccountDataSource,
+		account.NewAccountsDataSource,
 		bucket.NewBucketDataSource,
+		bucket.NewBucketsDataSource,
 	}
 }
 

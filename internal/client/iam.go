@@ -286,7 +286,7 @@ type AccountData struct {
 		QuotaMax         int64                  `json:"quotaMax"`
 		AliasList        []string               `json:"aliasList"`
 		OIDCPList        []string               `json:"oidcpList"`
-		CustomAttributes map[string]interface{} `json:"customAttributes"`
+		CustomAttributes map[string]any `json:"customAttributes"`
 	} `json:"data"`
 }
 
@@ -417,6 +417,59 @@ func (c *IAMClient) GetAccount(ctx context.Context, accountName string) (*Accoun
 	}
 
 	return &result, nil
+}
+
+// AccountListEntry represents one account in a ListAccounts response.
+// Mirrors the flat fields of AccountGetResponse.
+type AccountListEntry struct {
+	ARN              string            `json:"arn"`
+	CanonicalID      string            `json:"canonicalId"`
+	ID               string            `json:"id"`
+	EmailAddress     string            `json:"emailAddress"`
+	Name             string            `json:"name"`
+	CreateDate       string            `json:"createDate"`
+	QuotaMax         int64             `json:"quotaMax"`
+	CustomAttributes map[string]string `json:"customAttributes,omitempty"`
+}
+
+type accountListPage struct {
+	Accounts    []AccountListEntry `json:"accounts"`
+	Marker      string             `json:"marker"`
+	IsTruncated bool               `json:"isTruncated"`
+}
+
+// ListAccounts retrieves all Scality accounts, walking pagination.
+// Uses admin credentials configured on the IAMClient.
+func (c *IAMClient) ListAccounts(ctx context.Context) ([]AccountListEntry, error) {
+	var all []AccountListEntry
+	marker := ""
+	for {
+		params := url.Values{}
+		if marker != "" {
+			params.Set("marker", marker)
+		}
+
+		body, statusCode, err := c.DoSignedRequest(ctx, "ListAccounts", params)
+		if err != nil {
+			return nil, err
+		}
+
+		if statusCode != 200 && statusCode != 201 {
+			return nil, fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
+		}
+
+		var page accountListPage
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("failed to parse ListAccounts response: %w", err)
+		}
+
+		all = append(all, page.Accounts...)
+		if !page.IsTruncated || page.Marker == "" {
+			break
+		}
+		marker = page.Marker
+	}
+	return all, nil
 }
 
 // DeleteAccount deletes a Scality account.
