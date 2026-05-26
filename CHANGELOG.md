@@ -6,6 +6,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Added
 - `region` provider attribute (defaults to `us-east-1`, also settable via `SCALITY_REGION`) — overrides the SigV4 signing region used by the IAM and S3 clients. Previously hardcoded. (#46)
+- `## Data Sources` section in `docs/index.md` listing `scality_account`, `scality_accounts`, `scality_bucket`, `scality_buckets`. They were already documented per-page but absent from the provider overview. (#48)
 - `data.scality_account` data source. Looks up an existing account by name and exposes `id`, `email_address`, `quota_max`, `custom_attributes`, `arn`, `canonical_id`, `create_date`. Does not expose `access_key`/`secret_key` (IAM API returns those only at creation).
 - `data.scality_bucket` data source. Looks up an existing bucket by name within an account and exposes `id`, `arn`, `versioning`, `object_lock_enabled`, `tags`.
 - `data.scality_accounts` data source. Lists all accounts in the cluster (paginated under the hood). Returns a `accounts` list of objects with `id`, `name`, `email_address`, `arn`, `canonical_id`, `create_date`, `quota_max`. No `custom_attributes` per entry — use `data.scality_account` with `for_each` for drill-down.
@@ -13,6 +14,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - `docs/data-sources/scality_account.md`, `docs/data-sources/scality_bucket.md`, `docs/data-sources/scality_accounts.md`, `docs/data-sources/scality_buckets.md`.
 
 ### Changed
+- `examples/*.tf` version pins bumped to `~> 0.4` (was `0.2.1` in two files, missing in `multiple-accounts.tf`). (#48)
 - Replaced legacy `interface{}` style with `any` in `AccountCreateResponse.AccountData.CustomAttributes` (lint hygiene; no functional change).
 
 ## [0.4.0] - 2026-04-30

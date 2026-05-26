@@ -69,6 +69,15 @@ You only need to configure the APIs you use. An IAM endpoint alone is sufficient
 | [scality_iam_role](resources/scality_iam_role.md) | IAM role with trust policy |
 | [scality_iam_role_policy_attachment](resources/scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
 
+## Data Sources
+
+| Data Source | Description |
+|-------------|-------------|
+| [scality_account](data-sources/scality_account.md) | Look up an existing account by name |
+| [scality_accounts](data-sources/scality_accounts.md) | List all accounts in the cluster |
+| [scality_bucket](data-sources/scality_bucket.md) | Look up an existing bucket within an account |
+| [scality_buckets](data-sources/scality_buckets.md) | List all buckets owned by an account |
+
 ## Credential Pattern
 
 Most resources use per-account credentials (not provider-level admin credentials). A typical setup:
