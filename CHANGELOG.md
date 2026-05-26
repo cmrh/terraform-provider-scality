@@ -5,7 +5,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ## [Unreleased]
 
 ### Added
-- `region` provider attribute (defaults to `us-east-1`, also settable via `SCALITY_REGION`) — overrides the SigV4 signing region used by the IAM and S3 clients. Previously hardcoded.
+- `region` provider attribute (defaults to `us-east-1`, also settable via `SCALITY_REGION`) — overrides the SigV4 signing region used by the IAM and S3 clients. Previously hardcoded. (#46)
 - `data.scality_account` data source. Looks up an existing account by name and exposes `id`, `email_address`, `quota_max`, `custom_attributes`, `arn`, `canonical_id`, `create_date`. Does not expose `access_key`/`secret_key` (IAM API returns those only at creation).
 - `data.scality_bucket` data source. Looks up an existing bucket by name within an account and exposes `id`, `arn`, `versioning`, `object_lock_enabled`, `tags`.
 - `data.scality_accounts` data source. Lists all accounts in the cluster (paginated under the hood). Returns a `accounts` list of objects with `id`, `name`, `email_address`, `arn`, `canonical_id`, `create_date`, `quota_max`. No `custom_attributes` per entry — use `data.scality_account` with `for_each` for drill-down.
