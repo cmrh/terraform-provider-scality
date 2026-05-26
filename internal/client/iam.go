@@ -45,10 +45,11 @@ type IAMClient struct {
 	Endpoint   string
 	AccessKey  string
 	SecretKey  string
+	Region     string
 	HTTPClient *http.Client
 }
 
-// NewIAMClient creates a new Scality IAM API client.
+// NewIAMClient creates a new Scality IAM API client. Region defaults to awsRegion.
 func NewIAMClient(endpoint, accessKey, secretKey string, insecureSkipVerify bool) *IAMClient {
 	httpClient := &http.Client{
 		Timeout: defaultHTTPTimeout,
@@ -66,6 +67,7 @@ func NewIAMClient(endpoint, accessKey, secretKey string, insecureSkipVerify bool
 		Endpoint:   endpoint,
 		AccessKey:  accessKey,
 		SecretKey:  secretKey,
+		Region:     awsRegion,
 		HTTPClient: httpClient,
 	}
 }
@@ -95,13 +97,13 @@ func (c *IAMClient) signRequest(method, requestURL, payload, accessKey, secretKe
 		method, canonicalURI, canonicalQuerystring,
 		canonicalHeaders, signedHeaders, payloadHash)
 
-	credentialScope := fmt.Sprintf("%s/%s/%s/%s", dateStamp, awsRegion, awsService, awsRequestType)
+	credentialScope := fmt.Sprintf("%s/%s/%s/%s", dateStamp, c.Region, awsService, awsRequestType)
 
 	canonicalRequestHash := sha256.Sum256([]byte(canonicalRequest))
 	stringToSign := fmt.Sprintf("%s\n%s\n%s\n%s",
 		awsAlgorithm, amzDate, credentialScope, hex.EncodeToString(canonicalRequestHash[:]))
 
-	signingKey := getSignatureKey(secretKey, dateStamp, awsRegion, awsService)
+	signingKey := getSignatureKey(secretKey, dateStamp, c.Region, awsService)
 	signature := hmacSHA256(signingKey, stringToSign)
 
 	authorizationHeader := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
@@ -208,7 +210,7 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 		payloadHash,
 	}, "\n")
 
-	credentialScope := fmt.Sprintf("%s/%s/%s/%s", datestamp, awsRegion, awsService, awsRequestType)
+	credentialScope := fmt.Sprintf("%s/%s/%s/%s", datestamp, c.Region, awsService, awsRequestType)
 	stringToSign := strings.Join([]string{
 		awsAlgorithm,
 		amzdate,
@@ -216,7 +218,7 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 		sha256Hex([]byte(canonicalRequest)),
 	}, "\n")
 
-	signingKey := getSignatureKey(secretKey, datestamp, awsRegion, awsService)
+	signingKey := getSignatureKey(secretKey, datestamp, c.Region, awsService)
 	signature := hex.EncodeToString(hmacSHA256(signingKey, stringToSign))
 
 	authHeader := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",

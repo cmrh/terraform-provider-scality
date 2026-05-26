@@ -21,6 +21,7 @@ const s3Service = "s3"
 
 type S3Client struct {
 	Endpoint   string
+	Region     string
 	HTTPClient *http.Client
 }
 
@@ -39,6 +40,7 @@ func NewS3Client(endpoint string, insecureSkipVerify bool) *S3Client {
 
 	return &S3Client{
 		Endpoint:   strings.TrimRight(endpoint, "/"),
+		Region:     awsRegion,
 		HTTPClient: httpClient,
 	}
 }
@@ -103,7 +105,7 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 		payloadHash,
 	}, "\n")
 
-	credentialScope := fmt.Sprintf("%s/%s/%s/%s", datestamp, awsRegion, s3Service, awsRequestType)
+	credentialScope := fmt.Sprintf("%s/%s/%s/%s", datestamp, c.Region, s3Service, awsRequestType)
 	stringToSign := strings.Join([]string{
 		awsAlgorithm,
 		amzdate,
@@ -111,7 +113,7 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 		sha256Hex([]byte(canonicalRequest)),
 	}, "\n")
 
-	signingKey := getSignatureKey(secretKey, datestamp, awsRegion, s3Service)
+	signingKey := getSignatureKey(secretKey, datestamp, c.Region, s3Service)
 	signature := hex.EncodeToString(hmacSHA256(signingKey, stringToSign))
 
 	authHeader := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",

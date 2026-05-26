@@ -28,7 +28,8 @@ provider "scality" {
   console_password = var.console_pass                    # or SCALITY_CONSOLE_PASSWORD
 
   # Optional
-  insecure_skip_verify = true  # Skip TLS verification (self-signed certs)
+  region               = "us-east-1"  # SigV4 signing region, or SCALITY_REGION (default: us-east-1)
+  insecure_skip_verify = true         # Skip TLS verification (self-signed certs)
 }
 ```
 
