@@ -96,6 +96,9 @@ func CheckResourceDestroyed(resourceType string) resource.TestCheckFunc {
 					os.Getenv("SCALITY_SECRET_KEY"),
 					true,
 				)
+				if r := os.Getenv("SCALITY_REGION"); r != "" {
+					iamClient.Region = r
+				}
 				name := rs.Primary.Attributes["name"]
 				acct, err := iamClient.GetAccount(ctx, name)
 				if err != nil {

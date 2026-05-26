@@ -40,6 +40,7 @@ type ScalityProviderModel struct {
 	Endpoint           types.String `tfsdk:"endpoint"`
 	AccessKey          types.String `tfsdk:"access_key"`
 	SecretKey          types.String `tfsdk:"secret_key"`
+	Region             types.String `tfsdk:"region"`
 	ConsoleEndpoint    types.String `tfsdk:"console_endpoint"`
 	ConsoleUsername    types.String `tfsdk:"console_username"`
 	ConsolePassword    types.String `tfsdk:"console_password"`
@@ -68,6 +69,10 @@ func (p *ScalityProvider) Schema(ctx context.Context, req provider.SchemaRequest
 				Description: "Admin secret key for IAM API authentication. Can also be set via SCALITY_SECRET_KEY environment variable.",
 				Optional:    true,
 				Sensitive:   true,
+			},
+			"region": schema.StringAttribute{
+				Description: "AWS region used for SigV4 request signing. Defaults to \"us-east-1\". Can also be set via SCALITY_REGION environment variable.",
+				Optional:    true,
 			},
 			"console_endpoint": schema.StringAttribute{
 				Description: "Scality Console API endpoint (e.g., http://10.164.169.247:8080). Can also be set via SCALITY_CONSOLE_ENDPOINT environment variable.",
@@ -112,6 +117,11 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 	secretKey := config.SecretKey.ValueString()
 	if secretKey == "" {
 		secretKey = os.Getenv("SCALITY_SECRET_KEY")
+	}
+
+	region := config.Region.ValueString()
+	if region == "" {
+		region = os.Getenv("SCALITY_REGION")
 	}
 
 	consoleEndpoint := config.ConsoleEndpoint.ValueString()
@@ -162,6 +172,10 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 			iamClient = client.NewIAMClient(endpoint, "", "", insecureSkipVerify)
 		}
 		s3Client = client.NewS3Client(endpoint, insecureSkipVerify)
+		if region != "" {
+			iamClient.Region = region
+			s3Client.Region = region
+		}
 	}
 
 	if hasConsoleConfig {
