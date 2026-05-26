@@ -2,7 +2,7 @@ terraform {
   required_providers {
     scality = {
       source  = "scality/scality"
-      version = "0.2.1"
+      version = "~> 0.4"
     }
   }
 }
