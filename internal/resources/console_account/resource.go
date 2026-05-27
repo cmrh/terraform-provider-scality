@@ -29,7 +29,8 @@ const (
 )
 
 type ConsoleAccountResource struct {
-	client *client.ConsoleClient
+	client    *client.ConsoleClient
+	iamClient *client.IAMClient
 }
 
 func NewConsoleAccountResource() resource.Resource {
@@ -164,6 +165,7 @@ func (r *ConsoleAccountResource) Configure(ctx context.Context, req resource.Con
 	}
 
 	r.client = clients.Console
+	r.iamClient = clients.IAM
 }
 
 func (r *ConsoleAccountResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -248,8 +250,21 @@ func (r *ConsoleAccountResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	// Console API does not support GET for individual accounts.
-	// Preserve state as-is to prevent false drift detection.
+	// Console API has no GetAccount. When IAM admin credentials are configured,
+	// probe Vault to surface out-of-band deletion; otherwise preserve state.
+	if r.iamClient != nil && r.iamClient.AccessKey != "" {
+		name := data.AccountName.ValueString()
+		acct, err := r.iamClient.GetAccount(ctx, name)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to verify console account %q via Vault: %s", name, err))
+			return
+		}
+		if acct == nil {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
