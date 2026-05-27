@@ -21,6 +21,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - Replaced legacy `interface{}` style with `any` in `AccountCreateResponse.AccountData.CustomAttributes` (lint hygiene; no functional change).
 - IAM client now returns a typed `*APIError{Code, Message, StatusCode}` from `doSignedRequest` when the response body parses as an XML `ErrorResponse`; callers (`GetUser`, `GetUserPolicy`, `GetGroup`, `GetRole`, `DeleteRole`, `DetachRolePolicy`, `GetManagedPolicy`, `DeleteManagedPolicy` paths) now use `client.IsNotFound(err)` via `errors.As` instead of `strings.Contains(err.Error(), "NoSuchEntity")`. No user-visible behavior change; refactor hardens against upstream error-wording drift. (#52)
 
+### Fixed
+- `scality_console_account` Read now probes Vault via `IAMClient.GetAccount` to surface out-of-band deletion. When the provider is configured with IAM admin credentials (the common case), `terraform refresh` removes deleted accounts from state instead of silently preserving them. Console-only provider configurations retain the previous state-preserve behavior; drift detection is best-effort. (#54)
+
 ## [0.4.0] - 2026-04-30
 
 First general-availability release. Aside from the doc and CI changes below, the resource set and provider schema match `0.1.0-rc.1`.

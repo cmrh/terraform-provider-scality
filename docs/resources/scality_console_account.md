@@ -79,5 +79,5 @@ ansible-playbook -i env/s3config/inventory \
 - Uses Console API credentials from the provider configuration (`console_endpoint`, `console_username`, `console_password`).
 - All arguments force replacement. The Console API does not support in-place updates.
 - Deletion is a two-step process (account + associated user), handled automatically.
-- The Console GET endpoint returns HTML 404 for missing accounts, so the Read operation preserves state rather than querying the API.
+- The Console API has no per-account GET endpoint. When the provider is also configured with IAM admin credentials (`endpoint`, `access_key`, `secret_key`), Read probes Vault via `GetAccount` to detect out-of-band deletion and removes the resource from state if the account is gone. When the provider is configured Console-only, Read preserves state without probing — drift detection is best-effort.
 - Generated passwords include uppercase, lowercase, digits, and special characters. Ambiguous characters (0, O, 1, l, I) are excluded.
