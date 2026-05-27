@@ -697,8 +697,8 @@ func TestDeleteRootAccessKey_Error(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 404 status, got nil")
 	}
-	if !strings.Contains(err.Error(), "NoSuchEntity") {
-		t.Errorf("error = %q, want it to contain 'NoSuchEntity'", err.Error())
+	if !IsNotFound(err) {
+		t.Errorf("error = %q, want IsNotFound to return true", err.Error())
 	}
 }
 

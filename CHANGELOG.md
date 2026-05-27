@@ -19,6 +19,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ### Changed
 - `examples/*.tf` version pins bumped to `~> 0.4` (was `0.2.1` in two files, missing in `multiple-accounts.tf`). (#48)
 - Replaced legacy `interface{}` style with `any` in `AccountCreateResponse.AccountData.CustomAttributes` (lint hygiene; no functional change).
+- IAM client now returns a typed `*APIError{Code, Message, StatusCode}` from `doSignedRequest` when the response body parses as an XML `ErrorResponse`; callers (`GetUser`, `GetUserPolicy`, `GetGroup`, `GetRole`, `DeleteRole`, `DetachRolePolicy`, `GetManagedPolicy`, `DeleteManagedPolicy` paths) now use `client.IsNotFound(err)` via `errors.As` instead of `strings.Contains(err.Error(), "NoSuchEntity")`. No user-visible behavior change; refactor hardens against upstream error-wording drift. (#52)
 
 ## [0.4.0] - 2026-04-30
 

@@ -250,7 +250,11 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 	if resp.StatusCode >= 400 {
 		var iamErr iamErrorResponse
 		if xmlErr := xml.Unmarshal(respBody, &iamErr); xmlErr == nil && iamErr.Error.Code != "" {
-			return nil, fmt.Errorf("%s: %s", iamErr.Error.Code, iamErr.Error.Message)
+			return nil, &APIError{
+				Code:       iamErr.Error.Code,
+				Message:    iamErr.Error.Message,
+				StatusCode: resp.StatusCode,
+			}
 		}
 		return nil, fmt.Errorf("IAM request failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
@@ -647,7 +651,7 @@ func (c *IAMClient) GetUser(ctx context.Context, accessKey, secretKey, userName 
 
 	body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get user: %w", err)
@@ -751,7 +755,7 @@ func (c *IAMClient) GetUserPolicy(ctx context.Context, accessKey, secretKey, use
 
 	body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return "", nil
 		}
 		return "", fmt.Errorf("get user policy: %w", err)
@@ -921,7 +925,7 @@ func (c *IAMClient) GetGroup(ctx context.Context, accessKey, secretKey, groupNam
 
 	body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil, nil, nil
 		}
 		return nil, nil, fmt.Errorf("get group: %w", err)

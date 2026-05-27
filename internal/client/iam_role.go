@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/url"
-	"strings"
 )
 
 type iamRole struct {
@@ -70,7 +69,7 @@ func (c *IAMClient) GetRole(ctx context.Context, accessKey, secretKey, roleName 
 
 	body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get role: %w", err)
@@ -92,7 +91,7 @@ func (c *IAMClient) DeleteRole(ctx context.Context, accessKey, secretKey, roleNa
 
 	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("delete role: %w", err)
@@ -125,7 +124,7 @@ func (c *IAMClient) DetachRolePolicy(ctx context.Context, accessKey, secretKey, 
 
 	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("detach role policy: %w", err)

@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/url"
-	"strings"
 )
 
 type iamManagedPolicy struct {
@@ -70,7 +69,7 @@ func (c *IAMClient) GetManagedPolicy(ctx context.Context, accessKey, secretKey, 
 
 	body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get policy: %w", err)
@@ -141,7 +140,7 @@ func (c *IAMClient) DeleteManagedPolicy(ctx context.Context, accessKey, secretKe
 		"PolicyArn": {policyArn},
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("list policy versions: %w", err)
@@ -166,7 +165,7 @@ func (c *IAMClient) DeleteManagedPolicy(ctx context.Context, accessKey, secretKe
 		"PolicyArn": {policyArn},
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchEntity") {
+		if IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("delete policy: %w", err)
