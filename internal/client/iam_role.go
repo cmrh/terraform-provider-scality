@@ -152,3 +152,52 @@ func (c *IAMClient) ListAttachedRolePolicies(ctx context.Context, accessKey, sec
 
 	return resp.Result.AttachedPolicies, nil
 }
+
+// RoleListEntry represents one role in a ListRoles response.
+type RoleListEntry struct {
+	RoleName   string `xml:"RoleName"`
+	RoleId     string `xml:"RoleId"`
+	Arn        string `xml:"Arn"`
+	Path       string `xml:"Path"`
+	CreateDate string `xml:"CreateDate"`
+}
+
+type listRolesResponse struct {
+	XMLName xml.Name `xml:"ListRolesResponse"`
+	Result  struct {
+		Roles       []RoleListEntry `xml:"Roles>member"`
+		IsTruncated bool            `xml:"IsTruncated"`
+		Marker      string          `xml:"Marker"`
+	} `xml:"ListRolesResult"`
+}
+
+// ListRoles retrieves all IAM roles in the calling account, walking pagination.
+func (c *IAMClient) ListRoles(ctx context.Context, accessKey, secretKey string) ([]RoleListEntry, error) {
+	var all []RoleListEntry
+	marker := ""
+	for {
+		params := url.Values{
+			"Action": {"ListRoles"},
+		}
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			return nil, fmt.Errorf("list roles: %w", err)
+		}
+
+		var page listRolesResponse
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing list roles response: %w", err)
+		}
+
+		all = append(all, page.Result.Roles...)
+		if !page.Result.IsTruncated || page.Result.Marker == "" {
+			break
+		}
+		marker = page.Result.Marker
+	}
+	return all, nil
+}

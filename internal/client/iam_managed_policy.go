@@ -174,3 +174,58 @@ func (c *IAMClient) DeleteManagedPolicy(ctx context.Context, accessKey, secretKe
 
 	return nil
 }
+
+// PolicyListEntry represents one managed policy in a ListPolicies response.
+type PolicyListEntry struct {
+	PolicyName       string `xml:"PolicyName"`
+	PolicyId         string `xml:"PolicyId"`
+	Arn              string `xml:"Arn"`
+	Path             string `xml:"Path"`
+	DefaultVersionId string `xml:"DefaultVersionId"`
+	AttachmentCount  int    `xml:"AttachmentCount"`
+	CreateDate       string `xml:"CreateDate"`
+	UpdateDate       string `xml:"UpdateDate"`
+}
+
+type listPoliciesResponse struct {
+	XMLName xml.Name `xml:"ListPoliciesResponse"`
+	Result  struct {
+		Policies    []PolicyListEntry `xml:"Policies>member"`
+		IsTruncated bool              `xml:"IsTruncated"`
+		Marker      string            `xml:"Marker"`
+	} `xml:"ListPoliciesResult"`
+}
+
+// ListPolicies retrieves all customer-managed (Scope=Local) IAM policies in
+// the calling account, walking pagination. Scality ships no AWS-managed
+// policies, but Scope=Local keeps the contract explicit.
+func (c *IAMClient) ListPolicies(ctx context.Context, accessKey, secretKey string) ([]PolicyListEntry, error) {
+	var all []PolicyListEntry
+	marker := ""
+	for {
+		params := url.Values{
+			"Action": {"ListPolicies"},
+			"Scope":  {"Local"},
+		}
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			return nil, fmt.Errorf("list policies: %w", err)
+		}
+
+		var page listPoliciesResponse
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing list policies response: %w", err)
+		}
+
+		all = append(all, page.Result.Policies...)
+		if !page.Result.IsTruncated || page.Result.Marker == "" {
+			break
+		}
+		marker = page.Result.Marker
+	}
+	return all, nil
+}
