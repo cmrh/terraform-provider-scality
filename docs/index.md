@@ -77,6 +77,14 @@ You only need to configure the APIs you use. An IAM endpoint alone is sufficient
 | [scality_accounts](data-sources/scality_accounts.md) | List all accounts in the cluster |
 | [scality_bucket](data-sources/scality_bucket.md) | Look up an existing bucket within an account |
 | [scality_buckets](data-sources/scality_buckets.md) | List all buckets owned by an account |
+| [scality_user](data-sources/scality_user.md) | Look up an existing IAM user by name |
+| [scality_users](data-sources/scality_users.md) | List all IAM users in an account |
+| [scality_group](data-sources/scality_group.md) | Look up an existing IAM group by name |
+| [scality_groups](data-sources/scality_groups.md) | List all IAM groups in an account |
+| [scality_iam_policy](data-sources/scality_iam_policy.md) | Look up an existing managed policy by name |
+| [scality_iam_policies](data-sources/scality_iam_policies.md) | List all customer-managed policies in an account |
+| [scality_iam_role](data-sources/scality_iam_role.md) | Look up an existing IAM role by name |
+| [scality_iam_roles](data-sources/scality_iam_roles.md) | List all IAM roles in an account |
 
 ## Credential Pattern
 

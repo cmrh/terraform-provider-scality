@@ -675,6 +675,55 @@ func (c *IAMClient) DeleteUser(ctx context.Context, accessKey, secretKey, userNa
 	return nil
 }
 
+// UserListEntry represents one user in a ListUsers response.
+type UserListEntry struct {
+	UserName   string `xml:"UserName"`
+	UserId     string `xml:"UserId"`
+	Arn        string `xml:"Arn"`
+	Path       string `xml:"Path"`
+	CreateDate string `xml:"CreateDate"`
+}
+
+type listUsersResponse struct {
+	XMLName xml.Name `xml:"ListUsersResponse"`
+	Result  struct {
+		Users       []UserListEntry `xml:"Users>member"`
+		IsTruncated bool            `xml:"IsTruncated"`
+		Marker      string          `xml:"Marker"`
+	} `xml:"ListUsersResult"`
+}
+
+// ListUsers retrieves all IAM users in the calling account, walking pagination.
+func (c *IAMClient) ListUsers(ctx context.Context, accessKey, secretKey string) ([]UserListEntry, error) {
+	var all []UserListEntry
+	marker := ""
+	for {
+		params := url.Values{
+			"Action": {"ListUsers"},
+		}
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			return nil, fmt.Errorf("list users: %w", err)
+		}
+
+		var page listUsersResponse
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing list users response: %w", err)
+		}
+
+		all = append(all, page.Result.Users...)
+		if !page.Result.IsTruncated || page.Result.Marker == "" {
+			break
+		}
+		marker = page.Result.Marker
+	}
+	return all, nil
+}
+
 // --- IAM User Policy Operations (per-account auth) ---
 
 func (c *IAMClient) PutUserPolicy(ctx context.Context, accessKey, secretKey, userName, policyName, policyDocument string) error {
@@ -898,6 +947,55 @@ func (c *IAMClient) DeleteGroup(ctx context.Context, accessKey, secretKey, group
 	}
 
 	return nil
+}
+
+// GroupListEntry represents one group in a ListGroups response.
+type GroupListEntry struct {
+	GroupName  string `xml:"GroupName"`
+	GroupId    string `xml:"GroupId"`
+	Arn        string `xml:"Arn"`
+	Path       string `xml:"Path"`
+	CreateDate string `xml:"CreateDate"`
+}
+
+type listGroupsResponse struct {
+	XMLName xml.Name `xml:"ListGroupsResponse"`
+	Result  struct {
+		Groups      []GroupListEntry `xml:"Groups>member"`
+		IsTruncated bool             `xml:"IsTruncated"`
+		Marker      string           `xml:"Marker"`
+	} `xml:"ListGroupsResult"`
+}
+
+// ListGroups retrieves all IAM groups in the calling account, walking pagination.
+func (c *IAMClient) ListGroups(ctx context.Context, accessKey, secretKey string) ([]GroupListEntry, error) {
+	var all []GroupListEntry
+	marker := ""
+	for {
+		params := url.Values{
+			"Action": {"ListGroups"},
+		}
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			return nil, fmt.Errorf("list groups: %w", err)
+		}
+
+		var page listGroupsResponse
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing list groups response: %w", err)
+		}
+
+		all = append(all, page.Result.Groups...)
+		if !page.Result.IsTruncated || page.Result.Marker == "" {
+			break
+		}
+		marker = page.Result.Marker
+	}
+	return all, nil
 }
 
 func (c *IAMClient) AddUserToGroup(ctx context.Context, accessKey, secretKey, groupName, userName string) error {

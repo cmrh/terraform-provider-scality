@@ -224,6 +224,14 @@ func (p *ScalityProvider) DataSources(ctx context.Context) []func() datasource.D
 		account.NewAccountsDataSource,
 		bucket.NewBucketDataSource,
 		bucket.NewBucketsDataSource,
+		user.NewUserDataSource,
+		user.NewUsersDataSource,
+		group.NewGroupDataSource,
+		group.NewGroupsDataSource,
+		iampolicy.NewIAMPolicyDataSource,
+		iampolicy.NewIAMPoliciesDataSource,
+		iamrole.NewIAMRoleDataSource,
+		iamrole.NewIAMRolesDataSource,
 	}
 }
 
