@@ -35,15 +35,15 @@ Choose the API you want to use:
 ### Option A: IAM API (Environment Variables - Recommended)
 
 ```bash
-export SCALITY_ENDPOINT="http://10.164.169.247"
-export SCALITY_ACCESS_KEY="UE7VGEFRLGHWQMDBUD23"
-export SCALITY_SECRET_KEY="Ta37=vlEzH1d3tfoSIaqOPTbKfy1l2T=SlQzTwD6"
+export SCALITY_ENDPOINT="https://vault.example.com"
+export SCALITY_ACCESS_KEY="your-access-key"
+export SCALITY_SECRET_KEY="your-secret-key"
 ```
 
 ### Option B: Console API (Environment Variables)
 
 ```bash
-export SCALITY_CONSOLE_ENDPOINT="http://10.164.169.247:8080"
+export SCALITY_CONSOLE_ENDPOINT="https://vault.example.com:8080"
 export SCALITY_CONSOLE_USERNAME="admin"
 export SCALITY_CONSOLE_PASSWORD="admin-password"
 ```
@@ -52,12 +52,12 @@ export SCALITY_CONSOLE_PASSWORD="admin-password"
 
 ```bash
 # IAM API
-export SCALITY_ENDPOINT="http://10.164.169.247"
-export SCALITY_ACCESS_KEY="UE7VGEFRLGHWQMDBUD23"
-export SCALITY_SECRET_KEY="Ta37=vlEzH1d3tfoSIaqOPTbKfy1l2T=SlQzTwD6"
+export SCALITY_ENDPOINT="https://vault.example.com"
+export SCALITY_ACCESS_KEY="your-access-key"
+export SCALITY_SECRET_KEY="your-secret-key"
 
 # Console API
-export SCALITY_CONSOLE_ENDPOINT="http://10.164.169.247:8080"
+export SCALITY_CONSOLE_ENDPOINT="https://vault.example.com:8080"
 export SCALITY_CONSOLE_USERNAME="admin"
 export SCALITY_CONSOLE_PASSWORD="admin-password"
 ```
@@ -67,12 +67,12 @@ export SCALITY_CONSOLE_PASSWORD="admin-password"
 Create a file `terraform.tfvars`:
 ```hcl
 # IAM API
-scality_endpoint   = "http://10.164.169.247"
-scality_access_key = "UE7VGEFRLGHWQMDBUD23"
-scality_secret_key = "Ta37=vlEzH1d3tfoSIaqOPTbKfy1l2T=SlQzTwD6"
+scality_endpoint   = "https://vault.example.com"
+scality_access_key = "your-access-key"
+scality_secret_key = "your-secret-key"
 
 # Console API (optional)
-scality_console_endpoint = "http://10.164.169.247:8080"
+scality_console_endpoint = "https://vault.example.com:8080"
 scality_console_username = "admin"
 scality_console_password = "admin-password"
 ```
@@ -195,7 +195,7 @@ chmod 600 my-account-credentials.env
 source my-account-credentials.env
 
 # Test with AWS CLI (if compatible)
-aws s3 ls --endpoint-url http://10.164.169.247
+aws s3 ls --endpoint-url https://vault.example.com
 ```
 
 ## Step 10: Clean Up
@@ -325,7 +325,7 @@ If you see "provider not found", ensure:
 ### Authentication Errors
 
 If you see authentication errors:
-1. Verify endpoint is reachable: `curl http://10.164.169.247`
+1. Verify endpoint is reachable: `curl https://vault.example.com`
 2. Check credentials are correct
 3. Ensure admin credentials have IAM permissions
 

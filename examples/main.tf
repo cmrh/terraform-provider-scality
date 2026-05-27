@@ -8,10 +8,10 @@ terraform {
 }
 
 provider "scality" {
-  endpoint = "http://10.164.169.247"
+  endpoint = "https://vault.example.com"
   # Credentials are read from environment variables — never hardcode them here.
-  # export AWS_ACCESS_KEY_ID="your-admin-access-key"
-  # export AWS_SECRET_ACCESS_KEY="your-admin-secret-key"
+  # export SCALITY_ACCESS_KEY="your-admin-access-key"
+  # export SCALITY_SECRET_KEY="your-admin-secret-key"
 }
 
 # Create a basic account

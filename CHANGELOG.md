@@ -4,6 +4,11 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Changed
+- Replaced internal lab endpoint and example admin credentials baked into `QUICKSTART.md`, `examples/main.tf`, and the `endpoint` / `console_endpoint` provider schema descriptions with the generic `https://vault.example.com` placeholder pattern already used in `README.md`. Pre-public-release hygiene. (#56)
+
+## [0.5.0] - 2026-05-28
+
 ### Added
 - `region` provider attribute (defaults to `us-east-1`, also settable via `SCALITY_REGION`) — overrides the SigV4 signing region used by the IAM and S3 clients. Previously hardcoded. (#46)
 - `## Data Sources` section in `docs/index.md` listing `scality_account`, `scality_accounts`, `scality_bucket`, `scality_buckets`. They were already documented per-page but absent from the provider overview. (#48)

@@ -57,7 +57,7 @@ func (p *ScalityProvider) Schema(ctx context.Context, req provider.SchemaRequest
 		Description: "Terraform provider for managing Scality accounts and resources. Supports both IAM-style API (AWS Signature V4) and Console API (JWT authentication).",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
-				Description: "Scality IAM API endpoint (e.g., http://10.164.169.247). Can also be set via SCALITY_ENDPOINT environment variable.",
+				Description: "Scality IAM API endpoint (e.g., https://vault.example.com). Can also be set via SCALITY_ENDPOINT environment variable.",
 				Optional:    true,
 			},
 			"access_key": schema.StringAttribute{
@@ -75,7 +75,7 @@ func (p *ScalityProvider) Schema(ctx context.Context, req provider.SchemaRequest
 				Optional:    true,
 			},
 			"console_endpoint": schema.StringAttribute{
-				Description: "Scality Console API endpoint (e.g., http://10.164.169.247:8080). Can also be set via SCALITY_CONSOLE_ENDPOINT environment variable.",
+				Description: "Scality Console API endpoint (e.g., https://vault.example.com:8080). Can also be set via SCALITY_CONSOLE_ENDPOINT environment variable.",
 				Optional:    true,
 			},
 			"console_username": schema.StringAttribute{
