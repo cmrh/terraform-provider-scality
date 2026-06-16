@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -25,13 +26,13 @@ func NewIAMRoleDataSource() datasource.DataSource {
 }
 
 type IAMRoleDataSourceModel struct {
-	AccountAccessKey types.String `tfsdk:"account_access_key"`
-	AccountSecretKey types.String `tfsdk:"account_secret_key"`
-	RoleName         types.String `tfsdk:"role_name"`
-	ID               types.String `tfsdk:"id"`
-	ARN              types.String `tfsdk:"arn"`
-	Path             types.String `tfsdk:"path"`
-	AssumeRolePolicy types.String `tfsdk:"assume_role_policy"`
+	AccountAccessKey types.String         `tfsdk:"account_access_key"`
+	AccountSecretKey types.String         `tfsdk:"account_secret_key"`
+	RoleName         types.String         `tfsdk:"role_name"`
+	ID               types.String         `tfsdk:"id"`
+	ARN              types.String         `tfsdk:"arn"`
+	Path             types.String         `tfsdk:"path"`
+	AssumeRolePolicy jsontypes.Normalized `tfsdk:"assume_role_policy"`
 }
 
 func (d *IAMRoleDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -72,6 +73,7 @@ func (d *IAMRoleDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 			"assume_role_policy": schema.StringAttribute{
 				MarkdownDescription: "Trust policy (AssumeRolePolicyDocument) attached to the role, as a JSON string.",
 				Computed:            true,
+				CustomType:          jsontypes.NormalizedType{},
 			},
 		},
 	}
@@ -138,12 +140,12 @@ func (d *IAMRoleDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	if role.AssumeRolePolicyDocument != "" {
 		if decoded, err := url.QueryUnescape(role.AssumeRolePolicyDocument); err == nil {
-			data.AssumeRolePolicy = types.StringValue(decoded)
+			data.AssumeRolePolicy = jsontypes.NewNormalizedValue(decoded)
 		} else {
-			data.AssumeRolePolicy = types.StringValue(role.AssumeRolePolicyDocument)
+			data.AssumeRolePolicy = jsontypes.NewNormalizedValue(role.AssumeRolePolicyDocument)
 		}
 	} else {
-		data.AssumeRolePolicy = types.StringValue("")
+		data.AssumeRolePolicy = jsontypes.NewNormalizedNull()
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

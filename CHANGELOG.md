@@ -10,6 +10,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ### Changed
 - Replaced internal lab endpoint and example admin credentials baked into `QUICKSTART.md`, `examples/main.tf`, and the `endpoint` / `console_endpoint` provider schema descriptions with the generic `https://vault.example.com` placeholder pattern already used in `README.md`. Pre-public-release hygiene. (#56)
 
+### Fixed
+- Phantom plan diff on JSON policy documents. `scality_user_policy.policy_document`, `scality_iam_policy.policy_document`, `scality_bucket_policy.policy`, and `scality_iam_role.assume_role_policy` (plus the matching `data.scality_iam_policy` and `data.scality_iam_role` attributes) now use the `jsontypes.Normalized` custom type. JSON-equivalent values (whitespace, key order) compare equal via `StringSemanticEquals`, so `terraform plan` after a clean apply no longer reports `~ policy_document = jsonencode( # whitespace changes )`. No schema change on the wire and no state migration — the on-disk representation is still a string; only in-memory equality changed. Adds dependency `github.com/hashicorp/terraform-plugin-framework-jsontypes`. (#60)
+
 ## [0.5.0] - 2026-05-28
 
 ### Added

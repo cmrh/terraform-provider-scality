@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/scality/terraform-provider-scality/internal/client"
@@ -72,7 +72,7 @@ func (r *UserPolicyResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"policy_document": schema.StringAttribute{
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
-				Validators:          validators.JSONDocument(),
+				CustomType:          jsontypes.NormalizedType{},
 			},
 		},
 	}
@@ -155,7 +155,7 @@ func (r *UserPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	data.PolicyDocument = types.StringValue(policyDoc)
+	data.PolicyDocument = jsontypes.NewNormalizedValue(policyDoc)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

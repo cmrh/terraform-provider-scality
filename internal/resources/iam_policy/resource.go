@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -64,7 +65,7 @@ func (r *IAMPolicyResource) Schema(ctx context.Context, req resource.SchemaReque
 			"policy_document": schema.StringAttribute{
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
-				Validators:          validators.JSONDocument(),
+				CustomType:          jsontypes.NormalizedType{},
 			},
 			"arn": schema.StringAttribute{
 				MarkdownDescription: "ARN of the managed policy",
@@ -162,7 +163,7 @@ func (r *IAMPolicyResource) Read(ctx context.Context, req resource.ReadRequest, 
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read IAM policy document: %s", err))
 			return
 		}
-		data.PolicyDocument = types.StringValue(doc)
+		data.PolicyDocument = jsontypes.NewNormalizedValue(doc)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

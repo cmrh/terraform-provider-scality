@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -24,12 +25,12 @@ func NewIAMPolicyDataSource() datasource.DataSource {
 }
 
 type IAMPolicyDataSourceModel struct {
-	AccountAccessKey types.String `tfsdk:"account_access_key"`
-	AccountSecretKey types.String `tfsdk:"account_secret_key"`
-	PolicyName       types.String `tfsdk:"policy_name"`
-	ID               types.String `tfsdk:"id"`
-	ARN              types.String `tfsdk:"arn"`
-	PolicyDocument   types.String `tfsdk:"policy_document"`
+	AccountAccessKey types.String         `tfsdk:"account_access_key"`
+	AccountSecretKey types.String         `tfsdk:"account_secret_key"`
+	PolicyName       types.String         `tfsdk:"policy_name"`
+	ID               types.String         `tfsdk:"id"`
+	ARN              types.String         `tfsdk:"arn"`
+	PolicyDocument   jsontypes.Normalized `tfsdk:"policy_document"`
 }
 
 func (d *IAMPolicyDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -66,6 +67,7 @@ func (d *IAMPolicyDataSource) Schema(ctx context.Context, req datasource.SchemaR
 			"policy_document": schema.StringAttribute{
 				MarkdownDescription: "JSON policy document of the default version.",
 				Computed:            true,
+				CustomType:          jsontypes.NormalizedType{},
 			},
 		},
 	}
@@ -143,9 +145,9 @@ func (d *IAMPolicyDataSource) Read(ctx context.Context, req datasource.ReadReque
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read IAM policy document: %s", err))
 			return
 		}
-		data.PolicyDocument = types.StringValue(doc)
+		data.PolicyDocument = jsontypes.NewNormalizedValue(doc)
 	} else {
-		data.PolicyDocument = types.StringValue("")
+		data.PolicyDocument = jsontypes.NewNormalizedNull()
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
