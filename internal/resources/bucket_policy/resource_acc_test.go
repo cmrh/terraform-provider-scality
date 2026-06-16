@@ -125,6 +125,49 @@ resource "scality_bucket_policy" "test" {
 	})
 }
 
+// TestAccBucketPolicy_jsonWhitespace exercises the jsontypes.Normalized
+// custom type: the config carries a pretty-printed bucket policy while the
+// API stores and returns compact JSON. The framework's post-apply plan must
+// report no changes — semantic JSON equality, not byte-equality.
+func TestAccBucketPolicy_jsonWhitespace(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resourceName := "scality_bucket_policy.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_policy"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketPolicyBase(name) + fmt.Sprintf(`
+resource "scality_bucket_policy" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+  policy             = <<EOT
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::%[1]s-bucket/*"
+    }
+  ]
+}
+EOT
+  depends_on = [scality_user_policy.test]
+}
+`, name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "bucket", name+"-bucket"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccBucketPolicy_update(t *testing.T) {
 	name := acctest.RandomName("acctest")
 

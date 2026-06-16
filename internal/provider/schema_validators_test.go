@@ -111,20 +111,21 @@ func TestSchemaValidatorsWired(t *testing.T) {
 		{"scality_user", "username", "string", 2},
 
 		// --- user_policy ---
+		// policy_document uses jsontypes.Normalized CustomType for JSON
+		// validation + semantic equality, not explicit Validators.
 		{"scality_user_policy", "username", "string", 2},
 		{"scality_user_policy", "policy_name", "string", 2},
-		{"scality_user_policy", "policy_document", "string", 1},
 
 		// --- group ---
 		{"scality_group", "group_name", "string", 2},
 
 		// --- iam_policy ---
+		// policy_document uses jsontypes.Normalized CustomType (see user_policy).
 		{"scality_iam_policy", "policy_name", "string", 2},
-		{"scality_iam_policy", "policy_document", "string", 1},
 
 		// --- iam_role ---
+		// assume_role_policy uses jsontypes.Normalized CustomType (see user_policy).
 		{"scality_iam_role", "role_name", "string", 2},
-		{"scality_iam_role", "assume_role_policy", "string", 1},
 
 		// --- iam_role_policy_attachment ---
 		{"scality_iam_role_policy_attachment", "role_name", "string", 2},
@@ -146,8 +147,8 @@ func TestSchemaValidatorsWired(t *testing.T) {
 		{"scality_bucket_lifecycle", "rule.status", "nested_string", 1},
 
 		// --- bucket_policy ---
+		// policy uses jsontypes.Normalized CustomType (see user_policy).
 		{"scality_bucket_policy", "bucket", "string", 2},
-		{"scality_bucket_policy", "policy", "string", 1},
 
 		// --- bucket_replication (nested block) ---
 		{"scality_bucket_replication", "bucket", "string", 2},

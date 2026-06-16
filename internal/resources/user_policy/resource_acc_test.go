@@ -74,6 +74,40 @@ func TestAccUserPolicy_update(t *testing.T) {
 	})
 }
 
+// TestAccUserPolicy_jsonWhitespace exercises the jsontypes.Normalized custom
+// type: the config carries a pretty-printed JSON document while the API stores
+// and returns compact JSON. The framework's post-apply plan must report no
+// changes — semantic JSON equality, not byte-equality.
+func TestAccUserPolicy_jsonWhitespace(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resourceName := "scality_user_policy.test"
+
+	prettyDoc := `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "*"
+    }
+  ]
+}`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_user_policy"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccUserPolicyConfig(name, prettyDoc),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policy_name", name+"-policy"),
+				),
+			},
+		},
+	})
+}
+
 func testAccUserPolicyConfig(name, policyDoc string) string {
 	return acctest.ProviderBlock() + fmt.Sprintf(`
 resource "scality_console_account" "test" {

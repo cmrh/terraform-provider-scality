@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -65,7 +66,7 @@ func (r *IAMRoleResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"assume_role_policy": schema.StringAttribute{
 				MarkdownDescription: "JSON trust policy document that grants entities permission to assume the role",
 				Required:            true,
-				Validators:          validators.JSONDocument(),
+				CustomType:          jsontypes.NormalizedType{},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -164,7 +165,7 @@ func (r *IAMRoleResource) Read(ctx context.Context, req resource.ReadRequest, re
 		if err != nil {
 			decoded = role.AssumeRolePolicyDocument
 		}
-		data.AssumeRolePolicy = types.StringValue(decoded)
+		data.AssumeRolePolicy = jsontypes.NewNormalizedValue(decoded)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
