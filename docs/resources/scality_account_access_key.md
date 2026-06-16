@@ -70,4 +70,14 @@ When those env vars are unset, the import ID embeds the account credentials dire
 tofu import scality_account_access_key.example "ACCOUNT_ACCESS_KEY:ACCOUNT_SECRET_KEY:ACCESS_KEY_ID"
 ```
 
-After import, `secret_key` will be unknown (the API does not return secret keys for existing access keys).
+### Adoption: rotate, don't import
+
+Importing an existing key binds its identity but cannot recover the secret — the Vault IAM API returns `secret_key` only at creation and never again. After import, `secret_key` is empty in state, so any downstream resource that reads it (a `scality_bucket` configured with these credentials, a derived `local_file`, a chained provider) will fail.
+
+To bring an existing manually-created access key under Terraform management, create a new managed key and retire the manually-created one:
+
+1. Add a `scality_account_access_key` resource for the account. `terraform apply` creates a new key and records the secret in state.
+2. Update downstream resources to consume the new credentials.
+3. Delete the manually-created key out-of-band (or import-then-`terraform destroy` it).
+
+An account supports up to 4 access keys. If already at the cap, delete an unused one before applying.

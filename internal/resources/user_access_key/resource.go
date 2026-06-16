@@ -228,6 +228,7 @@ func (r *UserAccessKeyResource) ImportState(ctx context.Context, req resource.Im
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), idParts[0])...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key_id"), idParts[1])...)
+		appendUserAccessKeyImportSecretWarning(resp)
 		return
 	}
 
@@ -244,4 +245,20 @@ func (r *UserAccessKeyResource) ImportState(ctx context.Context, req resource.Im
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), parts[2])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key_id"), parts[3])...)
+	appendUserAccessKeyImportSecretWarning(resp)
+}
+
+// appendUserAccessKeyImportSecretWarning surfaces a non-blocking warning so an
+// operator sees that the imported state has no `secret_access_key` and that
+// rotating the key is the supported way to bring an existing one under
+// Terraform management. The API only returns the secret at creation time, so
+// import-then-Read can never repopulate it.
+func appendUserAccessKeyImportSecretWarning(resp *resource.ImportStateResponse) {
+	resp.Diagnostics.AddWarning(
+		"Imported access key has no secret in state",
+		"`secret_access_key` is available only at key creation and the IAM API does not return it on subsequent reads. "+
+			"After this import, `secret_access_key` will be empty in state — any downstream resource that consumes it will fail.\n\n"+
+			"To adopt an existing manually-created access key under Terraform management, create a new managed `scality_user_access_key` "+
+			"and retire the manually-created one. A user supports up to 4 access keys; delete an unused one first if already at the cap.",
+	)
 }

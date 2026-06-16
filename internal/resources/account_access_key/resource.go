@@ -237,6 +237,7 @@ func (r *AccountAccessKeyResource) ImportState(ctx context.Context, req resource
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key"), req.ID)...)
+		appendAccountAccessKeyImportSecretWarning(resp)
 		return
 	}
 
@@ -253,4 +254,20 @@ func (r *AccountAccessKeyResource) ImportState(ctx context.Context, req resource
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), parts[1])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key"), parts[2])...)
+	appendAccountAccessKeyImportSecretWarning(resp)
+}
+
+// appendAccountAccessKeyImportSecretWarning surfaces a non-blocking warning so
+// an operator sees that the imported state has no `secret_key` and that
+// rotating the key is the supported way to bring an existing one under
+// Terraform management. The API only returns the secret at creation time, so
+// import-then-Read can never repopulate it.
+func appendAccountAccessKeyImportSecretWarning(resp *resource.ImportStateResponse) {
+	resp.Diagnostics.AddWarning(
+		"Imported access key has no secret in state",
+		"`secret_key` is available only at key creation and the Vault IAM API does not return it on subsequent reads. "+
+			"After this import, `secret_key` will be empty in state — any downstream resource that consumes it will fail.\n\n"+
+			"To adopt an existing manually-created access key under Terraform management, create a new managed `scality_account_access_key` "+
+			"and retire the manually-created one. An account supports up to 4 access keys; delete an unused one first if already at the cap.",
+	)
 }
