@@ -196,6 +196,23 @@ func (r *IAMRolePolicyAttachmentResource) Delete(ctx context.Context, req resour
 }
 
 func (r *IAMRolePolicyAttachmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	if ak, sk, ok := client.ImportAccountCreds(); ok {
+		// POLICY_ARN itself contains colons — split only the leading role name off.
+		idParts := strings.SplitN(req.ID, ":", 2)
+		if len(idParts) != 2 || idParts[0] == "" || idParts[1] == "" {
+			resp.Diagnostics.AddError(
+				"Invalid Import ID",
+				"Import ID must be in format: ROLE_NAME:POLICY_ARN (account credentials are taken from SCALITY_ACCOUNT_ACCESS_KEY / SCALITY_ACCOUNT_SECRET_KEY)",
+			)
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), idParts[0])...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("policy_arn"), idParts[1])...)
+		return
+	}
+
 	// ARN contains colons, so use SplitN with 4 — everything after the third : is the policy ARN
 	parts := strings.SplitN(req.ID, ":", 4)
 	if len(parts) != 4 || parts[0] == "" || parts[1] == "" || parts[2] == "" || parts[3] == "" {

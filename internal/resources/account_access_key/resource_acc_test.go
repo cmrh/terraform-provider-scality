@@ -45,6 +45,13 @@ resource "scality_account_access_key" "test" {
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"secret_key", "create_date"},
 			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateIdFunc:       acctest.ImportStateIdFuncIdentityOnly(t, resourceName, "id"),
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"secret_key", "create_date"},
+			},
 		},
 	})
 }

@@ -59,6 +59,13 @@ resource "scality_iam_role_policy_attachment" "test" {
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "role_name",
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, resourceName, "role_name", "policy_arn"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "role_name",
+			},
 		},
 	})
 }

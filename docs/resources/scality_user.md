@@ -46,6 +46,16 @@ output "user_arn" {
 
 ## Import
 
+Set `SCALITY_ACCOUNT_ACCESS_KEY` and `SCALITY_ACCOUNT_SECRET_KEY` so the import ID carries only the username and no credentials leak into shell history or CI logs:
+
+```bash
+export SCALITY_ACCOUNT_ACCESS_KEY=...
+export SCALITY_ACCOUNT_SECRET_KEY=...
+tofu import scality_user.example USERNAME
+```
+
+When those env vars are unset, the import ID embeds the account credentials directly:
+
 ```bash
 tofu import scality_user.example "ACCESS_KEY:SECRET_KEY:USERNAME"
 ```

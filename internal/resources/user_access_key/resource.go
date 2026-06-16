@@ -215,6 +215,22 @@ func (r *UserAccessKeyResource) Delete(ctx context.Context, req resource.DeleteR
 }
 
 func (r *UserAccessKeyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	if ak, sk, ok := client.ImportAccountCreds(); ok {
+		idParts := strings.SplitN(req.ID, ":", 2)
+		if len(idParts) != 2 || idParts[0] == "" || idParts[1] == "" {
+			resp.Diagnostics.AddError(
+				"Invalid Import ID",
+				"Import ID must be in format: USERNAME:ACCESS_KEY_ID (account credentials are taken from SCALITY_ACCOUNT_ACCESS_KEY / SCALITY_ACCOUNT_SECRET_KEY)",
+			)
+			return
+		}
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), idParts[0])...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key_id"), idParts[1])...)
+		return
+	}
+
 	parts := strings.SplitN(req.ID, ":", 4)
 	if len(parts) != 4 || parts[0] == "" || parts[1] == "" || parts[2] == "" || parts[3] == "" {
 		resp.Diagnostics.AddError(
