@@ -149,3 +149,42 @@ func TestAccBucketLifecycle_update(t *testing.T) {
 		},
 	})
 }
+
+// TestAccBucketLifecycle_emptyPrefixNoPhantomDiff guards against the
+// null/empty round-trip mismatch where Read collapsed `prefix = ""` into a
+// null state value, producing a phantom in-place update on the next plan. The
+// framework's automatic post-apply plan check (ExpectNonEmptyPlan defaults to
+// false) fails the test if the regression returns.
+func TestAccBucketLifecycle_emptyPrefixNoPhantomDiff(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_lifecycle"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketLifecycleBase(name) + `
+resource "scality_bucket_lifecycle" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+
+  rule {
+    id                                     = "expire-stuff"
+    status                                 = "Enabled"
+    prefix                                 = ""
+    abort_incomplete_multipart_upload_days = 7
+    noncurrent_version_expiration_days     = 30
+  }
+
+  depends_on = [scality_user_policy.test]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.prefix", ""),
+				),
+			},
+		},
+	})
+}

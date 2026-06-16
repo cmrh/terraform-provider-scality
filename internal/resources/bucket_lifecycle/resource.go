@@ -134,41 +134,48 @@ func modelRulesToClient(rules []LifecycleRuleModel) []client.LifecycleRule {
 	return clientRules
 }
 
-func clientRulesToModel(rules []client.LifecycleRule) []LifecycleRuleModel {
+func clientRulesToModel(rules []client.LifecycleRule, prior []LifecycleRuleModel) []LifecycleRuleModel {
+	priorByID := make(map[string]LifecycleRuleModel, len(prior))
+	for _, p := range prior {
+		priorByID[p.ID.ValueString()] = p
+	}
 	modelRules := make([]LifecycleRuleModel, 0, len(rules))
 	for _, rule := range rules {
-		mr := LifecycleRuleModel{
-			ID:     types.StringValue(rule.ID),
-			Status: types.StringValue(rule.Status),
-		}
-		if rule.Prefix != "" {
-			mr.Prefix = types.StringValue(rule.Prefix)
-		} else {
-			mr.Prefix = types.StringNull()
-		}
-		if rule.ExpirationDays > 0 {
-			mr.ExpirationDays = types.Int64Value(int64(rule.ExpirationDays))
-		} else {
-			mr.ExpirationDays = types.Int64Null()
-		}
-		if rule.ExpirationDate != "" {
-			mr.ExpirationDate = types.StringValue(rule.ExpirationDate)
-		} else {
-			mr.ExpirationDate = types.StringNull()
-		}
-		if rule.NoncurrentVersionExpirationDays > 0 {
-			mr.NoncurrentVersionExpirationDays = types.Int64Value(int64(rule.NoncurrentVersionExpirationDays))
-		} else {
-			mr.NoncurrentVersionExpirationDays = types.Int64Null()
-		}
-		if rule.AbortIncompleteMultipartUploadDays > 0 {
-			mr.AbortIncompleteMultipartUploadDays = types.Int64Value(int64(rule.AbortIncompleteMultipartUploadDays))
-		} else {
-			mr.AbortIncompleteMultipartUploadDays = types.Int64Null()
-		}
-		modelRules = append(modelRules, mr)
+		p, hadPrior := priorByID[rule.ID]
+		modelRules = append(modelRules, LifecycleRuleModel{
+			ID:                                 types.StringValue(rule.ID),
+			Status:                             types.StringValue(rule.Status),
+			Prefix:                             pickPriorString(rule.Prefix, hadPrior, p.Prefix),
+			ExpirationDays:                     pickPriorInt(rule.ExpirationDays, hadPrior, p.ExpirationDays),
+			ExpirationDate:                     pickPriorString(rule.ExpirationDate, hadPrior, p.ExpirationDate),
+			NoncurrentVersionExpirationDays:    pickPriorInt(rule.NoncurrentVersionExpirationDays, hadPrior, p.NoncurrentVersionExpirationDays),
+			AbortIncompleteMultipartUploadDays: pickPriorInt(rule.AbortIncompleteMultipartUploadDays, hadPrior, p.AbortIncompleteMultipartUploadDays),
+		})
 	}
 	return modelRules
+}
+
+// pickPriorString preserves the user's empty-vs-null representation when the
+// API returns the zero value. PUT collapses both to the same wire form, so the
+// API cannot distinguish — the prior state is the only source of truth.
+func pickPriorString(apiVal string, hadPrior bool, prior types.String) types.String {
+	if apiVal != "" {
+		return types.StringValue(apiVal)
+	}
+	if hadPrior && !prior.IsNull() && prior.ValueString() == "" {
+		return prior
+	}
+	return types.StringNull()
+}
+
+func pickPriorInt(apiVal int, hadPrior bool, prior types.Int64) types.Int64 {
+	if apiVal > 0 {
+		return types.Int64Value(int64(apiVal))
+	}
+	if hadPrior && !prior.IsNull() && prior.ValueInt64() == 0 {
+		return prior
+	}
+	return types.Int64Null()
 }
 
 func (r *BucketLifecycleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -220,7 +227,7 @@ func (r *BucketLifecycleResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
-	data.Rules = clientRulesToModel(rules)
+	data.Rules = clientRulesToModel(rules, data.Rules)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
