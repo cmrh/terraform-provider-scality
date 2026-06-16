@@ -56,6 +56,16 @@ output "stable_credentials" {
 
 ## Import
 
+Set `SCALITY_ACCOUNT_ACCESS_KEY` and `SCALITY_ACCOUNT_SECRET_KEY` so the import ID carries only the access-key ID and no credentials leak into shell history or CI logs:
+
+```bash
+export SCALITY_ACCOUNT_ACCESS_KEY=...
+export SCALITY_ACCOUNT_SECRET_KEY=...
+tofu import scality_account_access_key.example ACCESS_KEY_ID
+```
+
+When those env vars are unset, the import ID embeds the account credentials directly:
+
 ```bash
 tofu import scality_account_access_key.example "ACCOUNT_ACCESS_KEY:ACCOUNT_SECRET_KEY:ACCESS_KEY_ID"
 ```

@@ -46,6 +46,14 @@ resource "scality_iam_role" "test" {
 				ImportStateVerifyIdentifierAttribute: "role_name",
 				ImportStateVerifyIgnore:              []string{"assume_role_policy"},
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, resourceName, "role_name"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "role_name",
+				ImportStateVerifyIgnore:              []string{"assume_role_policy"},
+			},
 		},
 	})
 }

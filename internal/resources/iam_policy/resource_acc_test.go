@@ -50,6 +50,14 @@ func TestAccIAMPolicy_basic(t *testing.T) {
 				ImportStateVerifyIdentifierAttribute: "arn",
 				ImportStateVerifyIgnore:              []string{"policy_document"},
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, resourceName, "arn"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "arn",
+				ImportStateVerifyIgnore:              []string{"policy_document"},
+			},
 		},
 	})
 }

@@ -99,6 +99,13 @@ resource "scality_bucket_object_lock" "test" {
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "bucket",
 			},
+			{
+				ResourceName:                         "scality_bucket_object_lock.test",
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, "scality_bucket_object_lock.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
+			},
 		},
 	})
 }

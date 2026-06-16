@@ -46,6 +46,13 @@ resource "scality_group" "test" {
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "group_name",
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, resourceName, "group_name"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "group_name",
+			},
 		},
 	})
 }

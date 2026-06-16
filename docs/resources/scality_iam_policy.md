@@ -52,6 +52,16 @@ resource "scality_iam_policy" "replication" {
 
 ## Import
 
+Set `SCALITY_ACCOUNT_ACCESS_KEY` and `SCALITY_ACCOUNT_SECRET_KEY` so the import ID is just the policy ARN and no credentials leak into shell history or CI logs:
+
+```bash
+export SCALITY_ACCOUNT_ACCESS_KEY=...
+export SCALITY_ACCOUNT_SECRET_KEY=...
+tofu import scality_iam_policy.example POLICY_ARN
+```
+
+When those env vars are unset, the import ID embeds the account credentials directly:
+
 ```bash
 tofu import scality_iam_policy.example "ACCESS_KEY:SECRET_KEY:POLICY_ARN"
 ```

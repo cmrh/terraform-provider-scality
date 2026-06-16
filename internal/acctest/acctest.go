@@ -79,6 +79,27 @@ func ImportStateIdFunc(resourceName string, idAttrs ...string) resource.ImportSt
 	}
 }
 
+// ImportStateIdFuncIdentityOnly produces an env-mode import ID — the identity
+// portion only, no leading account credentials — and stages
+// SCALITY_ACCOUNT_ACCESS_KEY / SCALITY_ACCOUNT_SECRET_KEY in the test's
+// environment so ImportState picks up the env-gated path.
+func ImportStateIdFuncIdentityOnly(t *testing.T, resourceName string, idAttrs ...string) resource.ImportStateIdFunc {
+	t.Helper()
+	return func(s *terraform.State) (string, error) {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("resource not found: %s", resourceName)
+		}
+		t.Setenv("SCALITY_ACCOUNT_ACCESS_KEY", rs.Primary.Attributes["account_access_key"])
+		t.Setenv("SCALITY_ACCOUNT_SECRET_KEY", rs.Primary.Attributes["account_secret_key"])
+		parts := make([]string, 0, len(idAttrs))
+		for _, attr := range idAttrs {
+			parts = append(parts, rs.Primary.Attributes[attr])
+		}
+		return strings.Join(parts, ":"), nil
+	}
+}
+
 func CheckResourceDestroyed(resourceType string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		ctx := context.Background()

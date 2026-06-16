@@ -49,6 +49,16 @@ resource "scality_iam_role" "replication" {
 
 ## Import
 
+Set `SCALITY_ACCOUNT_ACCESS_KEY` and `SCALITY_ACCOUNT_SECRET_KEY` so the import ID carries only the role name and no credentials leak into shell history or CI logs:
+
+```bash
+export SCALITY_ACCOUNT_ACCESS_KEY=...
+export SCALITY_ACCOUNT_SECRET_KEY=...
+tofu import scality_iam_role.example ROLE_NAME
+```
+
+When those env vars are unset, the import ID embeds the account credentials directly:
+
 ```bash
 tofu import scality_iam_role.example "ACCESS_KEY:SECRET_KEY:ROLE_NAME"
 ```

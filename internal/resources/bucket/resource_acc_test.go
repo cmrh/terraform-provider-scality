@@ -74,6 +74,13 @@ resource "scality_bucket" "test" {
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "bucket",
 			},
+			{
+				ResourceName:                         "scality_bucket.test",
+				ImportState:                          true,
+				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, "scality_bucket.test", "bucket"),
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "bucket",
+			},
 		},
 	})
 }
