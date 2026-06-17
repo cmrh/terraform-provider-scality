@@ -4,6 +4,14 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-17
+
+### Fixed
+- YAML syntax error in `.github/workflows/acceptance.yml` that prevented the v0.6.1 acceptance run from starting. The diagnostic step's `run:` value mixed a double-quoted scalar with trailing content on the same line (`run: "${TF_ACC_TERRAFORM_PATH}" version`), which YAML rejects after the closing `"`. Rewritten as a block scalar so the shell still quotes the binary path defensively. (#70)
+- Release binaries are no longer published when acceptance tests fail. Previously `.github/workflows/release.yml` and `.github/workflows/acceptance.yml` ran in parallel on a `v*` tag push, so `build` + `release-manifest` uploaded artifacts (binaries, signed `SHA256SUMS.sig`, manifest) regardless of whether the acceptance suite passed — exactly how v0.6.0 and v0.6.1 shipped with broken acceptance runs. `acceptance.yml` is now a reusable workflow invoked by `release.yml` as a gate between `test` and `build`; tag-push artifacts only publish when acceptance is green. `workflow_dispatch` on `acceptance.yml` still works for ad-hoc validation runs.
+
+## [0.6.1] - 2026-06-17
+
 ### Fixed
 - `scality_account` no longer reports a phantom replacement on the next plan after a `custom_attributes` write when `GetAccount` races the attribute persist. Two changes: (a) `quota_max` (`Optional+Computed+RequiresReplace`) now carries `int64planmodifier.UseStateForUnknown()` so it doesn't get re-marked Unknown when any other attribute drifts (matches the pattern used by the resource's other Computed attributes); (b) `Read` preserves prior state's `custom_attributes` when the API returns an empty map, mirroring the `bucket_lifecycle` Read fix from #62. Trade-off: out-of-band attribute deletions via the Vault Console are no longer surfaced on `terraform refresh`. Surfaced on a new self-hosted GitHub Actions runner whose latency exposed the eventual-consistency window; passes locally and on the previous runner. (#68)
 
