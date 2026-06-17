@@ -37,9 +37,15 @@ jobs:
             exit 1
           fi
 
+  acceptance:
+    name: Acceptance Tests
+    needs: test
+    uses: ./.github/workflows/acceptance.yml
+    secrets: inherit
+
   build:
     name: Build Release Binaries
-    needs: test
+    needs: [test, acceptance]
     runs-on: self-host-cm-tf-provider
     strategy:
       matrix:
