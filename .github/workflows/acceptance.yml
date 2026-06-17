@@ -30,7 +30,8 @@ jobs:
         run: go mod download
 
       - name: Acceptance runtime version
-        run: "${TF_ACC_TERRAFORM_PATH}" version
+        run: |
+          "$TF_ACC_TERRAFORM_PATH" version
 
       - name: Run acceptance tests
         env:
