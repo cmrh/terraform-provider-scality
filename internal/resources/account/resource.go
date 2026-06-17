@@ -66,6 +66,7 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
 					int64planmodifier.RequiresReplace(),
 				},
 			},
@@ -253,9 +254,10 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 			elements[k] = types.StringValue(v)
 		}
 		data.CustomAttributes = types.MapValueMust(types.StringType, elements)
-	} else if !data.CustomAttributes.IsNull() {
-		data.CustomAttributes = types.MapValueMust(types.StringType, map[string]attr.Value{})
 	}
+	// API returned no custom attributes: preserve prior state. UpdateAccountAttributes is
+	// eventually consistent, so GetAccount on a fresh refresh can race the write and return
+	// empty. Wiping state here would surface as a phantom in-place change on the next plan.
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

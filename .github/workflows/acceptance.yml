@@ -11,6 +11,12 @@ jobs:
     name: Acceptance Tests
     runs-on: self-host-cm-tf-provider
     timeout-minutes: 15
+    env:
+      # Single knob for the runtime binary the acceptance framework drives.
+      # Swap to /usr/bin/terraform (or any other path) to validate against
+      # the upstream Terraform binary without touching any other step.
+      TF_ACC_TERRAFORM_PATH: /usr/bin/tofu
+      TF_ACC_PROVIDER_NAMESPACE: scality
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,11 +29,12 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Acceptance runtime version
+        run: "${TF_ACC_TERRAFORM_PATH}" version
+
       - name: Run acceptance tests
         env:
           TF_ACC: 1
-          TF_ACC_TERRAFORM_PATH: /usr/bin/tofu
-          TF_ACC_PROVIDER_NAMESPACE: scality
           SCALITY_INSECURE_SKIP_VERIFY: "true"
           SCALITY_ENDPOINT: ${{ secrets.SCALITY_ENDPOINT }}
           SCALITY_ACCESS_KEY: ${{ secrets.SCALITY_ACCESS_KEY }}
