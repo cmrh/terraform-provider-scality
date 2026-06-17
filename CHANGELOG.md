@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-17
+
 ### Added
 - Env-gated, secret-free import mode for every per-account resource. When `SCALITY_ACCOUNT_ACCESS_KEY` and `SCALITY_ACCOUNT_SECRET_KEY` are both set, `terraform import` reads the credentials from the environment and the import ID carries only the resource identity (`BUCKET_NAME`, `USERNAME:POLICY_NAME`, `ROLE_NAME:POLICY_ARN`, etc.) — no more credentials in `import {}` blocks, shell history, or CI logs. When the env vars are unset, the legacy `ACCESS_KEY:SECRET_KEY:IDENTITY` form continues to parse byte-for-byte unchanged. Covers `bucket`, `bucket_encryption`, `bucket_lifecycle`, `bucket_policy`, `bucket_object_lock`, `bucket_replication`, `user`, `user_policy`, `user_access_key`, `group`, `group_membership`, `account_access_key`, `iam_policy`, `iam_role`, `iam_role_policy_attachment`. Pure additive change — no schema change, no state migration. (#58)
 
