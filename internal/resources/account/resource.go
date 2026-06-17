@@ -211,6 +211,10 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 				fmt.Sprintf("Account created but setting custom attributes failed: %s", err))
 			return
 		}
+		if err := r.client.WaitForCustomAttributes(ctx, data.Name.ValueString(), attrs); err != nil {
+			resp.Diagnostics.AddError("Client Error", err.Error())
+			return
+		}
 	}
 
 	tflog.Trace(ctx, "Created account resource")
@@ -254,10 +258,9 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 			elements[k] = types.StringValue(v)
 		}
 		data.CustomAttributes = types.MapValueMust(types.StringType, elements)
+	} else if !data.CustomAttributes.IsNull() {
+		data.CustomAttributes = types.MapValueMust(types.StringType, map[string]attr.Value{})
 	}
-	// API returned no custom attributes: preserve prior state. UpdateAccountAttributes is
-	// eventually consistent, so GetAccount on a fresh refresh can race the write and return
-	// empty. Wiping state here would surface as a phantom in-place change on the next plan.
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -285,6 +288,10 @@ func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if err := r.client.UpdateAccountAttributes(ctx, state.Name.ValueString(), attrs); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update account attributes: %s", err))
+		return
+	}
+	if err := r.client.WaitForCustomAttributes(ctx, state.Name.ValueString(), attrs); err != nil {
+		resp.Diagnostics.AddError("Client Error", err.Error())
 		return
 	}
 
