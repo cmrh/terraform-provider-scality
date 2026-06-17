@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Fixed
+- `scality_account` Create and Update now block until `UpdateAccountAttributes` is visible to `GetAccount`, eliminating the eventual-consistency race that surfaced as phantom in-place updates on post-apply refresh. New `IAMClient.WaitForCustomAttributes` polls with exponential backoff (100ms → 2s cap, 30s overall timeout) and returns a clear error if the API never converges. Covers both the post-Create empty-read case (#68) and the post-Update stale-read case that the v0.6.2 acceptance gate exposed. `Read` is restored to its straightforward overwrite-from-API behavior, so drift detection on out-of-band edits to `custom_attributes` still works. Typical added wall-clock on Create/Update is sub-500ms in the happy case. (#72)
+
 ## [0.6.2] - 2026-06-17
 
 ### Fixed

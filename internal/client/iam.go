@@ -539,6 +539,64 @@ func (c *IAMClient) UpdateAccountAttributes(ctx context.Context, accountName str
 	return nil
 }
 
+// customAttrsPollTimeout / customAttrsInitialBackoff are package-level vars so
+// tests can shorten them. Not exported.
+var (
+	customAttrsPollTimeout    = 30 * time.Second
+	customAttrsInitialBackoff = 100 * time.Millisecond
+	customAttrsMaxBackoff     = 2 * time.Second
+)
+
+// WaitForCustomAttributes polls GetAccount until the account's customAttributes
+// equal expected, or the context times out. Bridges the eventual-consistency
+// window between UpdateAccountAttributes returning 200 and GetAccount reflecting
+// the write — without it, a Read on post-apply refresh can race the write and
+// return either empty or the prior values, surfacing as phantom drift.
+func (c *IAMClient) WaitForCustomAttributes(ctx context.Context, accountName string, expected map[string]string) error {
+	pollCtx, cancel := context.WithTimeout(ctx, customAttrsPollTimeout)
+	defer cancel()
+
+	backoff := customAttrsInitialBackoff
+	var lastSeen map[string]string
+	for {
+		acc, err := c.GetAccount(pollCtx, accountName)
+		if err != nil {
+			return fmt.Errorf("waiting for custom attributes to converge: %w", err)
+		}
+		if acc == nil {
+			return fmt.Errorf("waiting for custom attributes: account %q disappeared", accountName)
+		}
+		lastSeen = acc.CustomAttributes
+		if customAttrsEqual(lastSeen, expected) {
+			return nil
+		}
+		select {
+		case <-pollCtx.Done():
+			return fmt.Errorf("UpdateAccountAttributes did not become visible to GetAccount within %s; expected %v, last saw %v",
+				customAttrsPollTimeout, expected, lastSeen)
+		case <-time.After(backoff):
+		}
+		if backoff < customAttrsMaxBackoff {
+			backoff *= 2
+			if backoff > customAttrsMaxBackoff {
+				backoff = customAttrsMaxBackoff
+			}
+		}
+	}
+}
+
+func customAttrsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if bv, ok := b[k]; !ok || bv != v {
+			return false
+		}
+	}
+	return true
+}
+
 // --- IAM XML Response Types ---
 
 type createUserResponse struct {
