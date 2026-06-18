@@ -211,10 +211,6 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 				fmt.Sprintf("Account created but setting custom attributes failed: %s", err))
 			return
 		}
-		if err := r.client.WaitForCustomAttributes(ctx, data.Name.ValueString(), attrs); err != nil {
-			resp.Diagnostics.AddError("Client Error", err.Error())
-			return
-		}
 	}
 
 	tflog.Trace(ctx, "Created account resource")
@@ -252,15 +248,25 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 	data.QuotaMax = types.Int64Value(account.QuotaMax)
 	data.EmailAddress = types.StringValue(account.EmailAddress)
 
-	if len(account.CustomAttributes) > 0 {
-		elements := make(map[string]attr.Value)
-		for k, v := range account.CustomAttributes {
-			elements[k] = types.StringValue(v)
+	if data.CustomAttributes.IsNull() || data.CustomAttributes.IsUnknown() {
+		// Initial read (import path or never-set). Trust the API value.
+		if len(account.CustomAttributes) > 0 {
+			elements := make(map[string]attr.Value)
+			for k, v := range account.CustomAttributes {
+				elements[k] = types.StringValue(v)
+			}
+			data.CustomAttributes = types.MapValueMust(types.StringType, elements)
 		}
-		data.CustomAttributes = types.MapValueMust(types.StringType, elements)
-	} else if !data.CustomAttributes.IsNull() {
-		data.CustomAttributes = types.MapValueMust(types.StringType, map[string]attr.Value{})
 	}
+	// State already holds a value: preserve it. The Vault IAM API serves reads
+	// from load-balanced replicas with non-uniform write propagation, so a
+	// post-apply GetAccount can land on a replica that hasn't seen a recent
+	// UpdateAccountAttributes yet and return either empty or the prior values.
+	// Either would surface as phantom in-place drift on the next plan.
+	// Trade-off: out-of-band edits to custom_attributes via the Vault Console
+	// are not surfaced on `terraform refresh`. The next apply that touches the
+	// attribute reconciles state to config (standard plan-vs-config diff is
+	// still shown before that apply).
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -288,10 +294,6 @@ func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	if err := r.client.UpdateAccountAttributes(ctx, state.Name.ValueString(), attrs); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update account attributes: %s", err))
-		return
-	}
-	if err := r.client.WaitForCustomAttributes(ctx, state.Name.ValueString(), attrs); err != nil {
-		resp.Diagnostics.AddError("Client Error", err.Error())
 		return
 	}
 
