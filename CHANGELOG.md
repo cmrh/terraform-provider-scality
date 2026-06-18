@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-06-18
+
 ### Fixed
 - `scality_account.Read` no longer overwrites prior state's `custom_attributes` from `GetAccount`. The Vault IAM API serves reads from load-balanced replicas with non-uniform write propagation, so a post-apply `GetAccount` can land on a replica that hasn't seen a recent `UpdateAccountAttributes` and return either empty or the prior values — both surface as phantom in-place drift. `Read` now populates `custom_attributes` from the API only on the initial-read path (state null/unknown, e.g. post-import); when state already holds a value, it's preserved. Trade-off: out-of-band edits via the Vault Console are not surfaced on `terraform refresh`. The next apply that touches the attribute reconciles state to config — standard plan-vs-config diff is still shown before that apply runs. Same trade-off pattern as #62. Supersedes the v0.6.3 polling attempt, which was correct against a single-node fixture but couldn't bridge the load-balanced multi-replica case. (#72)
 
