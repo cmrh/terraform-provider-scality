@@ -13,8 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	"github.com/scality/terraform-provider-scality/internal/client"
-	"github.com/scality/terraform-provider-scality/internal/provider"
+	"github.com/cmrh/terraform-provider-scality/internal/client"
+	"github.com/cmrh/terraform-provider-scality/internal/provider"
 )
 
 var TestProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){

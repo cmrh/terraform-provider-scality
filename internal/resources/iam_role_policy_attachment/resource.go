@@ -12,8 +12,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	"github.com/scality/terraform-provider-scality/internal/client"
-	"github.com/scality/terraform-provider-scality/internal/validators"
+	"github.com/cmrh/terraform-provider-scality/internal/client"
+	"github.com/cmrh/terraform-provider-scality/internal/validators"
 )
 
 var _ resource.Resource = &IAMRolePolicyAttachmentResource{}

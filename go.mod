@@ -1,4 +1,4 @@
-module github.com/scality/terraform-provider-scality
+module github.com/cmrh/terraform-provider-scality
 
 go 1.25.0
 

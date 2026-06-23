@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	"github.com/scality/terraform-provider-scality/internal/acctest"
+	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
 
 func testAccBucketObjectLockBase(name string) string {

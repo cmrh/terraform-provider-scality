@@ -5,8 +5,8 @@ import (
 	"flag"
 	"log"
 
+	"github.com/cmrh/terraform-provider-scality/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/scality/terraform-provider-scality/internal/provider"
 )
 
 // version is set during the release process
