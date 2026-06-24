@@ -4,6 +4,10 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-24
+
+First stable release. API surface unchanged from v0.6.4; the bump reflects the security/CI baseline below and a stable commitment to semver going forward.
+
 ### Added
 - Dependabot config for Go modules (daily) and GitHub Actions (weekly). (#4)
 - CodeQL workflow on PR + weekly schedule. (#4)
