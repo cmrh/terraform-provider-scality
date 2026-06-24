@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Test
-    runs-on: self-host-cm-tf-provider
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
   build:
     name: Build
     if: github.event_name == 'push'
-    runs-on: self-host-cm-tf-provider
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         goos: [linux, darwin, windows]

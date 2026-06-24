@@ -13,7 +13,7 @@ permissions:
 jobs:
   test:
     name: Run Tests
-    runs-on: self-host-cm-tf-provider
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
   build:
     name: Build Release Binaries
     needs: [test, acceptance]
-    runs-on: self-host-cm-tf-provider
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -115,7 +115,7 @@ jobs:
   release-manifest:
     name: Generate Release Manifest
     needs: build
-    runs-on: self-host-cm-tf-provider
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
