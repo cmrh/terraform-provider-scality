@@ -58,7 +58,7 @@ func NewIAMClient(endpoint, accessKey, secretKey string, insecureSkipVerify bool
 	if insecureSkipVerify {
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402 -- gated on the user-set insecure_skip_verify provider attribute
 			},
 		}
 	}

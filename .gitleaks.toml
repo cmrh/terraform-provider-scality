@@ -1,0 +1,19 @@
+# Inherit the default Gitleaks ruleset and extend with project-specific allowlist.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths and patterns that are intentionally not secrets"
+
+paths = [
+  '''internal/client/.*_test\.go$''',
+  '''internal/resources/.*/.*_test\.go$''',
+]
+
+regexes = [
+  # Test fixtures use these literal placeholder credentials in mocked HTTP responses.
+  '''admin-ak''',
+  '''admin-sk''',
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+]

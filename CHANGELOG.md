@@ -8,6 +8,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - Dependabot config for Go modules (daily) and GitHub Actions (weekly). (#4)
 - CodeQL workflow on PR + weekly schedule. (#4)
 - `govulncheck` step in `test.yml`. (#4)
+- `gitleaks` workflow on PR + push to main; `.gitleaks.toml` allowlists test fixtures. (#13)
+- `gosec` workflow on PR + push to main; 11 false-positive findings annotated inline with `// #nosec <ID> -- <reason>`. (#13)
 
 ### Security
 - Bumped `go` directive from 1.25.0 to 1.25.11, picking up stdlib patches across `crypto/tls`, `crypto/x509`, `net/http`, `net/url`, `encoding/asn1`, `encoding/pem`, `html/template`, `os`, and `net/textproto`. (#4)

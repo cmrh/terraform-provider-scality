@@ -51,7 +51,7 @@ func PreCheckConsole(t *testing.T) {
 }
 
 func RandomName(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, rand.Intn(99999))
+	return fmt.Sprintf("%s-%d", prefix, rand.Intn(99999)) // #nosec G404 -- math/rand suffices for unique acceptance-test resource names
 }
 
 func ProviderBlock() string {

@@ -3,7 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- MD5 used as cache-key hash, not for security
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
@@ -22,9 +22,9 @@ const (
 	consoleAuthPath    = "/_/console/authenticate"
 	consoleAccountPath = "/_/console/vault/accounts"
 	consoleContentType = "application/json"
-	tokenCachePrefix   = ".scality_console_token_"
-	tokenSafetyMargin  = 84600 // 23.5 hours in seconds
-	filePermissions    = 0600  // Owner read/write only
+	tokenCachePrefix   = ".scality_console_token_" // #nosec G101 -- filename prefix for token cache, not a credential
+	tokenSafetyMargin  = 84600                     // 23.5 hours in seconds
+	filePermissions    = 0600                      // Owner read/write only
 )
 
 // ConsoleClient handles API communication with Scality Console API using JWT.
@@ -46,7 +46,7 @@ func NewConsoleClient(endpoint, username, password string, insecureSkipVerify bo
 	if insecureSkipVerify {
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402 -- gated on the user-set insecure_skip_verify provider attribute
 			},
 		}
 	}
@@ -67,7 +67,7 @@ type TokenCache struct {
 
 func (c *ConsoleClient) getCacheFile() string {
 	cacheKey := fmt.Sprintf("%s:%s", c.Endpoint, c.Username)
-	hash := md5.Sum([]byte(cacheKey))
+	hash := md5.Sum([]byte(cacheKey)) // #nosec G401 -- MD5 used as a cache-key hash, not for security
 	cacheHash := hex.EncodeToString(hash[:])
 
 	cacheDir := os.TempDir()
@@ -77,7 +77,7 @@ func (c *ConsoleClient) getCacheFile() string {
 func (c *ConsoleClient) getCachedToken() (string, error) {
 	cacheFile := c.getCacheFile()
 
-	data, err := os.ReadFile(cacheFile)
+	data, err := os.ReadFile(cacheFile) // #nosec G304 -- cacheFile is built from os.TempDir() + an internal prefix, not user input
 	if err != nil {
 		return "", err
 	}
@@ -260,7 +260,7 @@ func (c *ConsoleClient) CreateConsoleAccount(ctx context.Context, req ConsoleAcc
 
 	accountURL := c.Endpoint + consoleAccountPath
 
-	jsonPayload, err := json.Marshal(req)
+	jsonPayload, err := json.Marshal(req) // #nosec G117 -- Password field is the Console API auth payload sent over TLS
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
