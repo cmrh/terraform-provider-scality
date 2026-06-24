@@ -2,10 +2,9 @@
 
 ## Reporting a vulnerability
 
-If you discover a security vulnerability in the Scality Terraform provider,
-please report it privately rather than opening a public issue.
-
-**Email:** security@scality.com
+If you discover a security vulnerability in this provider, report it privately
+via GitHub's [Private Vulnerability Reporting](https://github.com/cmrh/terraform-provider-scality/security/advisories/new)
+rather than opening a public issue.
 
 Include:
 
@@ -14,9 +13,8 @@ Include:
 - The provider version (and Scality cluster version, if relevant)
 - Any suggested mitigation
 
-We will acknowledge receipt within five business days and keep you informed of
-remediation progress. Please give us reasonable time to address the issue
-before any public disclosure.
+You'll get an acknowledgement and ongoing status updates through the advisory.
+Please give a reasonable window for remediation before any public disclosure.
 
 ## Supported versions
 

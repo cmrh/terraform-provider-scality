@@ -4,8 +4,19 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Added
+- Dependabot config for Go modules (daily) and GitHub Actions (weekly). (#4)
+- CodeQL workflow on PR + weekly schedule. (#4)
+- `govulncheck` step in `test.yml`. (#4)
+
+### Security
+- Bumped `go` directive from 1.25.0 to 1.25.11, picking up stdlib patches across `crypto/tls`, `crypto/x509`, `net/http`, `net/url`, `encoding/asn1`, `encoding/pem`, `html/template`, `os`, and `net/textproto`. (#4)
+- Bumped `golang.org/x/net` from v0.49.0 to v0.56.0 (covers GO-2026-4918, GO-2026-5026). (#4)
+
 ### Changed
 - `test.yml` and the build/release-manifest jobs in `release.yml` run on `ubuntu-latest`. `acceptance.yml` stays on `self-host-cm-tf-provider` and is invoked from `release.yml` via `workflow_call`. (#2)
+- Workflow-level `permissions: contents: read` on `test.yml`, `acceptance.yml`, and `release.yml`. `release.yml`'s `build` and `release-manifest` jobs declare `contents: write` per-job for artifact upload and signing. (#4)
+- `SECURITY.md` points to GitHub Private Vulnerability Reporting. (#4)
 
 ## [0.6.4] - 2026-06-18
 
