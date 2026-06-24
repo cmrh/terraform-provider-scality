@@ -8,8 +8,8 @@ Manage Scality S3C / RING storage infrastructure with OpenTofu or Terraform. Sup
 terraform {
   required_providers {
     scality = {
-      source  = "scality/scality"
-      version = "~> 0.4"
+      source  = "cmrh/scality"
+      version = "~> 1.0"
     }
   }
 }
@@ -79,7 +79,7 @@ export SCALITY_INSECURE_SKIP_VERIFY="true"
 ```hcl
 terraform {
   required_providers {
-    scality = { source = "scality/scality" }
+    scality = { source = "cmrh/scality" }
   }
 }
 
@@ -126,7 +126,7 @@ resource "scality_user_access_key" "operator" {
 ## Building from Source
 
 ```bash
-git clone https://github.com/scality/terraform-provider-scality
+git clone https://github.com/cmrh/terraform-provider-scality
 cd terraform-provider-scality
 go build -o terraform-provider-scality .
 ```
@@ -136,7 +136,7 @@ For development, add a `dev_overrides` block to `~/.tofurc` (or `~/.terraformrc`
 ```hcl
 provider_installation {
   dev_overrides {
-    "scality/scality" = "/path/to/binary/directory"
+    "cmrh/scality" = "/path/to/binary/directory"
   }
   direct {}
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	"github.com/scality/terraform-provider-scality/internal/client"
+	"github.com/cmrh/terraform-provider-scality/internal/client"
 )
 
 var _ datasource.DataSource = &IAMRolesDataSource{}

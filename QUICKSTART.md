@@ -85,7 +85,7 @@ Create a file `main.tf`:
 terraform {
   required_providers {
     scality = {
-      source = "scality/scality"
+      source = "cmrh/scality"
     }
   }
 }
@@ -213,7 +213,7 @@ If you configured Console API credentials, you can create accounts via the Conso
 terraform {
   required_providers {
     scality = {
-      source = "scality/scality"
+      source = "cmrh/scality"
     }
   }
 }
@@ -319,7 +319,7 @@ terraform apply
 
 If you see "provider not found", ensure:
 1. You ran `make install`
-2. The binary is in `~/.terraform.d/plugins/registry.terraform.io/scality/scality/0.1.0/linux_amd64/`
+2. The binary is in `~/.terraform.d/plugins/registry.terraform.io/cmrh/scality/0.1.0/linux_amd64/`
 3. You ran `terraform init`
 
 ### Authentication Errors
