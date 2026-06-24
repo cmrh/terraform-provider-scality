@@ -1,4 +1,2 @@
-# Default owner for everything in the repo. Update to a specific GitHub team
-# or list of users before publishing the first public release.
-# * @scality/ts @cyrus-scality
-* @cyrus-scality
+# Default owner for everything in the repo.
+* @cmrh
