@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test
@@ -32,6 +35,11 @@ jobs:
 
       - name: Run go vet
         run: go vet ./...
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
