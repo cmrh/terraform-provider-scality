@@ -3,7 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- MD5 required by S3 Content-MD5 protocol header
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
@@ -33,7 +33,7 @@ func NewS3Client(endpoint string, insecureSkipVerify bool) *S3Client {
 	if insecureSkipVerify {
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402 -- gated on the user-set insecure_skip_verify provider attribute
 			},
 		}
 	}
@@ -144,7 +144,7 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 		if !hasContentType {
 			httpReq.Header.Set("Content-Type", "application/xml")
 		}
-		md5Hash := md5.Sum(body)
+		md5Hash := md5.Sum(body) // #nosec G401 -- S3 Content-MD5 header is required by the protocol
 		httpReq.Header.Set("Content-MD5", base64.StdEncoding.EncodeToString(md5Hash[:]))
 	}
 
