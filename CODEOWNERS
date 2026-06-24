@@ -1,2 +1,3 @@
-# Default owner for everything in the repo.
+# Default owner for everything in the repo. Update to a specific GitHub team
+# or list of users before publishing the first public release.
 * @cmrh
