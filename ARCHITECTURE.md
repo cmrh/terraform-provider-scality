@@ -94,6 +94,20 @@ Each resource is a package with:
 
 The provider bundles all three in `ProviderClients`. Each resource extracts the client it needs in its `Configure` method.
 
+### Standard library clients
+
+The S3, IAM, and Console clients are built directly on the Go standard library. The provider does not depend on `aws-sdk-go`, `aws-sdk-go-v2`, or any third-party S3 client.
+
+| Concern | Implementation |
+|---|---|
+| HTTP transport | `net/http` |
+| SigV4 signing | `crypto/hmac`, `crypto/sha256`, `encoding/hex` (in `IAMClient` and `S3Client`) |
+| JWT auth | manual header on `ConsoleClient` |
+| Request/response bodies | `encoding/xml` for S3, form-encoded for IAM, `encoding/json` for Console |
+| `Content-MD5` integrity header | `crypto/md5` (required by the S3 PUT protocol on certain operations) |
+
+Each client is a few hundred lines, debuggable end-to-end with `TF_LOG=trace`, and tied directly to Scality's control-plane shape (per-account endpoints, the `iam:DoAction` admin API, the dual S3+Console auth model).
+
 ### IAM vs S3 signing
 
 Both use AWS SigV4, but differ in the service name and URL structure:
