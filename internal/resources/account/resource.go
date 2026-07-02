@@ -200,6 +200,14 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 	data.AccessKey = types.StringValue(accessKey.Data.ID)
 	data.SecretKey = types.StringValue(accessKey.Data.Value)
 
+	// Persist the generated root key before any further step. The secret is
+	// only returned at creation, so a later failure must not strand a live
+	// credential outside state.
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if !data.CustomAttributes.IsNull() && !data.CustomAttributes.IsUnknown() && len(data.CustomAttributes.Elements()) > 0 {
 		attrs := make(map[string]string)
 		for k, v := range data.CustomAttributes.Elements() {
