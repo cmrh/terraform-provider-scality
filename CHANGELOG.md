@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Fixed
+- `scality_account` now persists the generated root access key to state immediately after creation, before setting custom attributes. Previously, if `UpdateAccountAttributes` failed, Create returned without writing the keys — leaving a live, unrecoverable root credential on the account with no record in state. (#18)
+
 ## [1.0.0] - 2026-06-24
 
 First stable release. API surface unchanged from v0.6.4; the bump reflects the security/CI baseline below and a stable commitment to semver going forward.
