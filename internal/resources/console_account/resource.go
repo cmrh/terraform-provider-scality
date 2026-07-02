@@ -205,6 +205,9 @@ func (r *ConsoleAccountResource) Create(ctx context.Context, req resource.Create
 			"account_name":    data.AccountName.ValueString(),
 			"password_length": passwordLength,
 		})
+	} else {
+		// password is Computed; resolve it so state isn't left unknown after apply.
+		data.Password = types.StringNull()
 	}
 
 	account, err := r.client.CreateConsoleAccount(ctx, createReq)
