@@ -1,14 +1,16 @@
 name: Release
 
 on:
-  release:
-    types: [created]
   push:
     tags:
       - 'v*'
 
 permissions:
   contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -47,8 +49,6 @@ jobs:
     name: Build Release Binaries
     needs: [test, acceptance]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     strategy:
       matrix:
         include:
@@ -97,25 +97,23 @@ jobs:
 
           zip ${ARCHIVE_NAME}.zip ${BINARY_NAME}
           rm ${BINARY_NAME}
-          echo "ASSET=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
+          sha256sum ${ARCHIVE_NAME}.zip > ${ARCHIVE_NAME}.zip.sha256
 
-      - name: Generate SHA256 checksum
-        run: |
-          sha256sum ${{ env.ASSET }} > ${{ env.ASSET }}.sha256
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      # Hand the archive + checksum to the release job as an immutable within-run
+      # artifact. The release job signs what it receives here, so nothing between
+      # build and sign can tamper with what gets a valid GPG signature.
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-dev') }}
-          files: |
-            ${{ env.ASSET }}
-            ${{ env.ASSET }}.sha256
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            terraform-provider-scality_*.zip
+            terraform-provider-scality_*.zip.sha256
+          retention-days: 1
+          if-no-files-found: error
 
-  release-manifest:
-    name: Generate Release Manifest
+  release:
+    name: Sign and Publish Release
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -131,77 +129,54 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
 
-      - name: Import GPG key
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Assemble manifest and checksums
+        working-directory: dist
         run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          VERSION_NO_V=${{ steps.version.outputs.version_no_v }}
+
+          # Provider manifest — reuse the repo-root manifest so the release asset
+          # always matches the schema the registry reads from the repo.
+          cp "${GITHUB_WORKSPACE}/terraform-registry-manifest.json" \
+            "terraform-provider-scality_${VERSION_NO_V}_manifest.json"
+
+          # SHA256SUMS covers every published asset (zips + manifest). Built from
+          # the downloaded artifacts, not from mutable release state.
+          sha256sum terraform-provider-scality_*.zip \
+            "terraform-provider-scality_${VERSION_NO_V}_manifest.json" \
+            > "terraform-provider-scality_${VERSION_NO_V}_SHA256SUMS"
+
+          # Fail loudly if any downloaded artifact doesn't match its checksum.
+          sha256sum -c "terraform-provider-scality_${VERSION_NO_V}_SHA256SUMS"
+
+      - name: Import GPG key
+        run: printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
-      - name: Create SHA256SUMS file
-        run: |
-          TAG=${{ steps.version.outputs.version }}
-          VERSION_NO_V=${{ steps.version.outputs.version_no_v }}
-
-          # Download all per-archive checksums from the release
-          gh release download ${TAG} --pattern "*.sha256"
-
-          # Combine into single SHA256SUMS file (registry requires no v prefix)
-          cat *.sha256 > terraform-provider-scality_${VERSION_NO_V}_SHA256SUMS
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Sign SHA256SUMS
+        working-directory: dist
         run: |
           VERSION_NO_V=${{ steps.version.outputs.version_no_v }}
-          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --detach-sign terraform-provider-scality_${VERSION_NO_V}_SHA256SUMS
-
-      - name: Upload SHA256SUMS and signature
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_SHA256SUMS
-            terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_SHA256SUMS.sig
+          printf '%s' "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --detach-sign "terraform-provider-scality_${VERSION_NO_V}_SHA256SUMS"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
-      - name: Create provider manifest
-        run: |
-          VERSION=${{ steps.version.outputs.version_no_v }}
-          cat > terraform-provider-scality_${VERSION}_manifest.json << EOF
-          {
-            "version": "${VERSION}",
-            "protocols": ["6.0"],
-            "platforms": [
-              {
-                "os": "linux",
-                "arch": "amd64"
-              },
-              {
-                "os": "linux",
-                "arch": "arm64"
-              },
-              {
-                "os": "darwin",
-                "arch": "amd64"
-              },
-              {
-                "os": "darwin",
-                "arch": "arm64"
-              },
-              {
-                "os": "windows",
-                "arch": "amd64"
-              }
-            ]
-          }
-          EOF
-
-      - name: Upload manifest
+      - name: Publish release assets
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_manifest.json
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-dev') }}
+          files: |
+            dist/terraform-provider-scality_*.zip
+            dist/terraform-provider-scality_*.zip.sha256
+            dist/terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_SHA256SUMS
+            dist/terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_SHA256SUMS.sig
+            dist/terraform-provider-scality_${{ steps.version.outputs.version_no_v }}_manifest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
