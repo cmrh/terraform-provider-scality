@@ -9,6 +9,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - `scality_console_account` no longer fails at apply when `generate_random_password` is unset or false. The Computed `password` attribute is now resolved to null in that case instead of being left unknown. (#19)
 - `GetGroup` now paginates. `scality_group_membership` previously truncated the member set at one page (~100 users), causing permanent drift and no-op re-adds on groups larger than that. (#20)
 
+### Security
+- The Console JWT is no longer written to a predictable file in `os.TempDir()`. The token is now held in memory for the client's lifetime only, removing the symlink/pre-creation and cross-run exposure on shared hosts. (#21)
+
 ## [1.0.0] - 2026-06-24
 
 First stable release. API surface unchanged from v0.6.4; the bump reflects the security/CI baseline below and a stable commitment to semver going forward.
