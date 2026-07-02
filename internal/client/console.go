@@ -3,18 +3,13 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/md5" // #nosec G501 -- MD5 used as cache-key hash, not for security
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"sync"
-	"time"
 )
 
 // Console API constants
@@ -22,9 +17,6 @@ const (
 	consoleAuthPath    = "/_/console/authenticate"
 	consoleAccountPath = "/_/console/vault/accounts"
 	consoleContentType = "application/json"
-	tokenCachePrefix   = ".scality_console_token_" // #nosec G101 -- filename prefix for token cache, not a credential
-	tokenSafetyMargin  = 84600                     // 23.5 hours in seconds
-	filePermissions    = 0600                      // Owner read/write only
 )
 
 // ConsoleClient handles API communication with Scality Console API using JWT.
@@ -59,75 +51,14 @@ func NewConsoleClient(endpoint, username, password string, insecureSkipVerify bo
 	}
 }
 
-// TokenCache represents cached token data.
-type TokenCache struct {
-	Token     string  `json:"token"`
-	Timestamp float64 `json:"timestamp"`
-}
-
-func (c *ConsoleClient) getCacheFile() string {
-	cacheKey := fmt.Sprintf("%s:%s", c.Endpoint, c.Username)
-	hash := md5.Sum([]byte(cacheKey)) // #nosec G401 -- MD5 used as a cache-key hash, not for security
-	cacheHash := hex.EncodeToString(hash[:])
-
-	cacheDir := os.TempDir()
-	return filepath.Join(cacheDir, tokenCachePrefix+cacheHash)
-}
-
-func (c *ConsoleClient) getCachedToken() (string, error) {
-	cacheFile := c.getCacheFile()
-
-	data, err := os.ReadFile(cacheFile) // #nosec G304 -- cacheFile is built from os.TempDir() + an internal prefix, not user input
-	if err != nil {
-		return "", err
-	}
-
-	var cache TokenCache
-	if err := json.Unmarshal(data, &cache); err != nil {
-		return "", err
-	}
-
-	tokenAge := time.Now().Unix() - int64(cache.Timestamp)
-	if tokenAge >= tokenSafetyMargin {
-		_ = os.Remove(cacheFile)
-		return "", fmt.Errorf("token expired")
-	}
-
-	return cache.Token, nil
-}
-
-func (c *ConsoleClient) cacheToken(token string) error {
-	cacheFile := c.getCacheFile()
-
-	cache := TokenCache{
-		Token:     token,
-		Timestamp: float64(time.Now().Unix()),
-	}
-
-	data, err := json.Marshal(cache)
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(cacheFile, data, filePermissions); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Authenticate authenticates with the Console API and caches the token.
-// Safe for concurrent use; only one goroutine authenticates at a time.
+// Authenticate authenticates with the Console API and caches the token in
+// memory for the lifetime of the client. Safe for concurrent use; only one
+// goroutine authenticates at a time.
 func (c *ConsoleClient) Authenticate(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.token != "" {
-		return nil
-	}
-
-	if cachedToken, err := c.getCachedToken(); err == nil {
-		c.token = cachedToken
 		return nil
 	}
 
@@ -183,8 +114,6 @@ func (c *ConsoleClient) Authenticate(ctx context.Context) error {
 	}
 
 	c.token = result.Token
-
-	_ = c.cacheToken(c.token)
 
 	return nil
 }
