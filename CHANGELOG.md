@@ -8,6 +8,10 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - `scality_account` now persists the generated root access key to state immediately after creation, before setting custom attributes. Previously, if `UpdateAccountAttributes` failed, Create returned without writing the keys — leaving a live, unrecoverable root credential on the account with no record in state. (#18)
 - `scality_console_account` no longer fails at apply when `generate_random_password` is unset or false. The Computed `password` attribute is now resolved to null in that case instead of being left unknown. (#19)
 - `GetGroup` now paginates. `scality_group_membership` previously truncated the member set at one page (~100 users), causing permanent drift and no-op re-adds on groups larger than that. (#20)
+- Release-asset provider manifest now emits the correct schema (`{"version": 1, "metadata": {"protocol_versions": [...]}}`, copied from the repo-root manifest) and its checksum is included in `SHA256SUMS`. The previous hand-built manifest used an invalid schema and was absent from `SHA256SUMS`, which the registry rejected. (#16)
+
+### Changed
+- Release workflow hardened. `release.yml` triggers only on tag push (the duplicate `release: [created]` trigger is removed) and carries a `concurrency` group so a tag can't run two racing pipelines. The `build` job now hands archives to the signing job via `actions/upload-artifact`/`download-artifact` (immutable within a run) instead of round-tripping through mutable release assets, and re-verifies every checksum before signing — closing the window where a tampered or stale asset could receive a valid GPG signature. `build` no longer needs `contents: write`. (#22)
 
 ### Security
 - The Console JWT is no longer written to a predictable file in `os.TempDir()`. The token is now held in memory for the client's lifetime only, removing the symlink/pre-creation and cross-run exposure on shared hosts. (#21)
