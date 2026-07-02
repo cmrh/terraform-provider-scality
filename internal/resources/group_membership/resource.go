@@ -243,8 +243,13 @@ func (r *GroupMembershipResource) Delete(ctx context.Context, req resource.Delet
 
 	for _, userName := range users {
 		if err := r.client.RemoveUserFromGroup(ctx, ak, sk, groupName, userName); err != nil {
-			if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
+			// Account gone: nothing left to remove.
+			if strings.Contains(err.Error(), "InvalidAccessKeyId") {
 				return
+			}
+			// This user (or the group) is already gone: skip it, keep removing the rest.
+			if strings.Contains(err.Error(), "NoSuchEntity") {
+				continue
 			}
 			resp.Diagnostics.AddError("Client Error",
 				fmt.Sprintf("Unable to remove user %q from group %q: %s", userName, groupName, err))
