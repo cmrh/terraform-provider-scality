@@ -467,6 +467,47 @@ func TestGetGroupEmptyUsers(t *testing.T) {
 	}
 }
 
+func TestGetGroupPaginated(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+		calls++
+		marker := r.Form.Get("Marker")
+		w.WriteHeader(200)
+		switch marker {
+		case "":
+			// First page: truncated, one member, hands out a marker.
+			_, _ = w.Write([]byte(`<GetGroupResponse><GetGroupResult><Group><GroupName>big</GroupName><GroupId>AGP1</GroupId><Arn>arn:aws:iam::123:group/big</Arn><Path>/</Path></Group><Users><member><UserName>user1</UserName><UserId>AID001</UserId><Arn>arn:aws:iam::123:user/user1</Arn><Path>/</Path></member></Users><IsTruncated>true</IsTruncated><Marker>page2</Marker></GetGroupResult></GetGroupResponse>`))
+		case "page2":
+			// Final page: not truncated, second member.
+			_, _ = w.Write([]byte(`<GetGroupResponse><GetGroupResult><Group><GroupName>big</GroupName><GroupId>AGP1</GroupId><Arn>arn:aws:iam::123:group/big</Arn><Path>/</Path></Group><Users><member><UserName>user2</UserName><UserId>AID002</UserId><Arn>arn:aws:iam::123:user/user2</Arn><Path>/</Path></member></Users><IsTruncated>false</IsTruncated></GetGroupResult></GetGroupResponse>`))
+		default:
+			t.Errorf("unexpected Marker=%s", marker)
+		}
+	}))
+	defer server.Close()
+
+	client := NewIAMClient(server.URL, "admin-ak", "admin-sk", false)
+	group, users, err := client.GetGroup(context.Background(), "test-ak", "test-sk", "big")
+	if err != nil {
+		t.Fatalf("GetGroup returned error: %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("expected 2 paginated requests, got %d", calls)
+	}
+	if group == nil || group.GroupName != "big" {
+		t.Fatalf("expected group big, got %+v", group)
+	}
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users across pages, got %d", len(users))
+	}
+	if users[0].UserName != "user1" || users[1].UserName != "user2" {
+		t.Errorf("expected [user1 user2], got [%s %s]", users[0].UserName, users[1].UserName)
+	}
+}
+
 // --- DeleteGroup ---
 
 func TestDeleteGroup(t *testing.T) {

@@ -610,8 +610,10 @@ type createGroupResponse struct {
 type getGroupResponse struct {
 	XMLName xml.Name `xml:"GetGroupResponse"`
 	Result  struct {
-		Group iamGroup  `xml:"Group"`
-		Users []iamUser `xml:"Users>member"`
+		Group       iamGroup  `xml:"Group"`
+		Users       []iamUser `xml:"Users>member"`
+		IsTruncated bool      `xml:"IsTruncated"`
+		Marker      string    `xml:"Marker"`
 	} `xml:"GetGroupResult"`
 }
 
@@ -918,25 +920,40 @@ func (c *IAMClient) CreateGroup(ctx context.Context, accessKey, secretKey, group
 }
 
 func (c *IAMClient) GetGroup(ctx context.Context, accessKey, secretKey, groupName string) (*iamGroup, []iamUser, error) {
-	params := url.Values{
-		"Action":    {"GetGroup"},
-		"GroupName": {groupName},
-	}
-
-	body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
-	if err != nil {
-		if IsNotFound(err) {
-			return nil, nil, nil
+	var group iamGroup
+	var users []iamUser
+	marker := ""
+	for {
+		params := url.Values{
+			"Action":    {"GetGroup"},
+			"GroupName": {groupName},
 		}
-		return nil, nil, fmt.Errorf("get group: %w", err)
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			if IsNotFound(err) {
+				return nil, nil, nil
+			}
+			return nil, nil, fmt.Errorf("get group: %w", err)
+		}
+
+		var resp getGroupResponse
+		if err := xml.Unmarshal(body, &resp); err != nil {
+			return nil, nil, fmt.Errorf("parsing get group response: %w", err)
+		}
+
+		group = resp.Result.Group
+		users = append(users, resp.Result.Users...)
+		if !resp.Result.IsTruncated || resp.Result.Marker == "" {
+			break
+		}
+		marker = resp.Result.Marker
 	}
 
-	var resp getGroupResponse
-	if err := xml.Unmarshal(body, &resp); err != nil {
-		return nil, nil, fmt.Errorf("parsing get group response: %w", err)
-	}
-
-	return &resp.Result.Group, resp.Result.Users, nil
+	return &group, users, nil
 }
 
 func (c *IAMClient) DeleteGroup(ctx context.Context, accessKey, secretKey, groupName string) error {
