@@ -43,7 +43,13 @@ jobs:
     name: Acceptance Tests
     needs: test
     uses: ./.github/workflows/acceptance.yml
-    secrets: inherit
+    secrets:
+      SCALITY_ENDPOINT: ${{ secrets.SCALITY_ENDPOINT }}
+      SCALITY_ACCESS_KEY: ${{ secrets.SCALITY_ACCESS_KEY }}
+      SCALITY_SECRET_KEY: ${{ secrets.SCALITY_SECRET_KEY }}
+      SCALITY_CONSOLE_ENDPOINT: ${{ secrets.SCALITY_CONSOLE_ENDPOINT }}
+      SCALITY_CONSOLE_USERNAME: ${{ secrets.SCALITY_CONSOLE_USERNAME }}
+      SCALITY_CONSOLE_PASSWORD: ${{ secrets.SCALITY_CONSOLE_PASSWORD }}
 
   build:
     name: Build Release Binaries

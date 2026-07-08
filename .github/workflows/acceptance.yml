@@ -2,6 +2,19 @@ name: Acceptance Tests
 
 on:
   workflow_call:
+    secrets:
+      SCALITY_ENDPOINT:
+        required: true
+      SCALITY_ACCESS_KEY:
+        required: true
+      SCALITY_SECRET_KEY:
+        required: true
+      SCALITY_CONSOLE_ENDPOINT:
+        required: true
+      SCALITY_CONSOLE_USERNAME:
+        required: true
+      SCALITY_CONSOLE_PASSWORD:
+        required: true
   workflow_dispatch:
 
 permissions:
