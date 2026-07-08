@@ -17,6 +17,13 @@ crash.*.log
 dist/
 coverage.txt
 
+# Release build artifacts (produced by release.yml, never committed)
+terraform-provider-scality_*.zip
+terraform-provider-scality_*.zip.sha256
+terraform-provider-scality_*_SHA256SUMS
+terraform-provider-scality_*_SHA256SUMS.sig
+terraform-provider-scality_*_manifest.json
+
 CLAUDE.md
 todo.md
 RELEASE_NOTES.md
