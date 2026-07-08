@@ -1,0 +1,74 @@
+name: Tool version bumps
+
+# Pinned tool versions (go directive, govulncheck, gosec, golangci-lint) aren't
+# watched by Dependabot — they live in shell strings / inputs, not as tracked
+# deps. This job checks each against upstream weekly and opens a single PR when
+# anything is stale, so the pins stay current without manual polling.
+#
+# NOTE: PRs opened with the default GITHUB_TOKEN do not trigger other workflows,
+# so CI won't run on the bump PR. Set an AUTOBUMP_TOKEN secret (a PAT or GitHub
+# App token with repo scope) to have the bump PR run the normal checks.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    name: Check pinned tool versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update pins
+        run: |
+          set -euo pipefail
+
+          replace() { # file  old-string  new-string
+            if [ "$2" != "$3" ]; then
+              sed -i "s|$2|$3|g" "$1"
+              echo "  $2 -> $3"
+            fi
+          }
+
+          echo "govulncheck:"
+          vuln_latest=$(curl -fsSL https://proxy.golang.org/golang.org/x/vuln/@latest | jq -r .Version)
+          vuln_cur=$(grep -oE 'govulncheck@v[0-9.]+' .github/workflows/test.yml | cut -d@ -f2)
+          replace .github/workflows/test.yml "govulncheck@${vuln_cur}" "govulncheck@${vuln_latest}"
+
+          echo "gosec:"
+          gosec_latest=$(curl -fsSL https://proxy.golang.org/github.com/securego/gosec/v2/@latest | jq -r .Version)
+          gosec_cur=$(grep -oE 'gosec@v[0-9.]+' .github/workflows/gosec.yml | cut -d@ -f2)
+          replace .github/workflows/gosec.yml "gosec@${gosec_cur}" "gosec@${gosec_latest}"
+
+          echo "golangci-lint:"
+          gcl_latest=$(curl -fsSL https://api.github.com/repos/golangci/golangci-lint/releases/latest | jq -r .tag_name)
+          gcl_cur=$(grep -oE 'version: v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/test.yml | awk '{print $2}')
+          replace .github/workflows/test.yml "version: ${gcl_cur}" "version: ${gcl_latest}"
+
+          echo "go directive (patch of current minor):"
+          go_cur=$(grep -oE '^go [0-9.]+' go.mod | awk '{print $2}')
+          minor=$(echo "$go_cur" | cut -d. -f1,2)
+          go_latest=$(curl -fsSL 'https://go.dev/dl/?mode=json' \
+            | jq -r '.[].version' | grep -E "^go${minor}\." | sort -V | tail -1 | sed 's/^go//')
+          replace go.mod "go ${go_cur}" "go ${go_latest}"
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.AUTOBUMP_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: chore/tool-bumps
+          title: "chore: bump pinned tool versions"
+          commit-message: "chore: bump pinned tool versions"
+          body: |
+            Automated bump of pinned tool versions (go directive, govulncheck, gosec, golangci-lint).
+            See the job log for the specific version changes.
+          delete-branch: true

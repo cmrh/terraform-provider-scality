@@ -3,17 +3,14 @@
 useDefault = true
 
 [allowlist]
-description = "Paths and patterns that are intentionally not secrets"
+description = "Specific placeholder credentials used in test fixtures"
 
-paths = [
-  '''internal/client/.*_test\.go$''',
-  '''internal/resources/.*/.*_test\.go$''',
-]
-
+# Anchored so these match only the exact fixture values, never a real secret
+# that happens to contain them as a substring. No path exemptions — a real
+# credential pasted into any file, test or not, is still flagged.
 regexes = [
-  # Test fixtures use these literal placeholder credentials in mocked HTTP responses.
-  '''admin-ak''',
-  '''admin-sk''',
-  '''AKIAIOSFODNN7EXAMPLE''',
-  '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+  '''^admin-ak$''',
+  '''^admin-sk$''',
+  '''^AKIAIOSFODNN7EXAMPLE$''',
+  '''^wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY$''',
 ]

@@ -38,13 +38,18 @@ jobs:
 
       - name: Run govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
           govulncheck ./...
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.12.2
+          # Disable the action's result cache. It keys on the golangci-lint
+          # version, which didn't change when we pinned latest -> v2.12.2, so a
+          # stale analysis cache surfaced phantom findings. Lint runs in seconds;
+          # determinism is worth more than the cache here.
+          skip-cache: true
 
       - name: Run tests
         run: go test ./... -v -coverprofile=coverage.txt -covermode=atomic
