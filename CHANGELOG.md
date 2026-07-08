@@ -17,6 +17,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ### Security
 - The Console JWT is no longer written to a predictable file in `os.TempDir()`. The token is now held in memory for the client's lifetime only, removing the symlink/pre-creation and cross-run exposure on shared hosts. (#21)
 - The release workflow passes only the `SCALITY_*` secrets to the acceptance job (explicit `secrets:` mapping) instead of `secrets: inherit`, so `GPG_PRIVATE_KEY`/`GPG_PASSPHRASE` are no longer exposed to the self-hosted acceptance runner. (#30)
+- Bumped the `go` directive from 1.25.11 to 1.25.12 for the `crypto/tls` fix (GO-2026-5856). (#30)
 
 ### Removed
 - Untracked stale build artifacts committed at the repo root (`coverage.txt`, `terraform-provider-scality_1.0.0_SHA256SUMS`, `_SHA256SUMS.sig`, `_manifest.json`); `.gitignore` now covers release outputs. (#30)
