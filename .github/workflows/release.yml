@@ -103,7 +103,7 @@ jobs:
       # artifact. The release job signs what it receives here, so nothing between
       # build and sign can tamper with what gets a valid GPG signature.
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
