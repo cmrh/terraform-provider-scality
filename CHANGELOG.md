@@ -13,6 +13,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Changed
 - Release workflow hardened. `release.yml` triggers only on tag push (the duplicate `release: [created]` trigger is removed) and carries a `concurrency` group so a tag can't run two racing pipelines. The `build` job now hands archives to the signing job via `actions/upload-artifact`/`download-artifact` (immutable within a run) instead of round-tripping through mutable release assets, and re-verifies every checksum before signing — closing the window where a tampered or stale asset could receive a valid GPG signature. `build` no longer needs `contents: write`. (#22)
+- Pinned `govulncheck` (v1.5.0), `gosec` (v2.27.1), and `golangci-lint` (v2.12.2) to explicit versions instead of `@latest`, so a tool release can't red an unrelated PR. A weekly `tool-bumps.yml` workflow watches these pins plus the `go` directive and opens a PR when any is stale. (#31)
+- `.gitleaks.toml` no longer exempts all `_test.go` files by path; the placeholder-credential allowlist is anchored to exact values so a real secret in a test file is still flagged. (#31)
 
 ### Security
 - The Console JWT is no longer written to a predictable file in `os.TempDir()`. The token is now held in memory for the client's lifetime only, removing the symlink/pre-creation and cross-run exposure on shared hosts. (#21)
