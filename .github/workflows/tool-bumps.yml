@@ -62,7 +62,7 @@ jobs:
           replace go.mod "go ${go_cur}" "go ${go_latest}"
 
       - name: Open pull request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.AUTOBUMP_TOKEN || secrets.GITHUB_TOKEN }}
           branch: chore/tool-bumps
