@@ -1,0 +1,31 @@
+name: Security scan
+
+# Advisory weekly govulncheck against main. Non-blocking: it surfaces newly
+# disclosed vulnerabilities for triage without red-flagging unrelated PRs. The
+# blocking gate lives in release.yml (a release can't ship a reachable vuln).
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+          govulncheck ./...
