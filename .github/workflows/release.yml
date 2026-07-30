@@ -31,6 +31,14 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Run govulncheck
+        # Blocking here (not on PRs): a release must not ship a reachable
+        # known-vulnerable dependency. PR CI stays green through vuln-DB churn;
+        # the gate that protects published binaries lives on the release path.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.5.0
+          govulncheck ./...
+
       - name: Check formatting
         run: |
           if [ -n "$(gofmt -l .)" ]; then

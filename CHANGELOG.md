@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Changed
+- `govulncheck` moved off PR CI. It now blocks in `release.yml` (a release can't ship a reachable vuln) and runs weekly, non-blocking, in `security-scan.yml`. PRs no longer go red when the vulnerability DB updates on unchanged code. (#42)
+
 ### Security
 - Bumped indirect deps `golang.org/x/text` (v0.38.0 → v0.39.0, GO-2026-5970) and `google.golang.org/grpc` (v1.80.0 → v1.82.1, GO-2026-6061). (#43)
 
