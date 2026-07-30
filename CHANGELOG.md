@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Security
+- Bumped indirect deps `golang.org/x/text` (v0.38.0 → v0.39.0, GO-2026-5970) and `google.golang.org/grpc` (v1.80.0 → v1.82.1, GO-2026-6061). (#43)
+
 ## [1.0.1] - 2026-07-09
 
 ### Fixed
