@@ -4,7 +4,7 @@ This document describes how to cut a release of the Scality Terraform Provider.
 
 ## Prerequisites
 
-- Push access to the `scality/terraform-provider-scality` repository
+- Push access to the `cmrh/terraform-provider-scality` repository
 - GPG key registered as a GitHub Actions secret (see [GPG Setup](#gpg-setup) below)
 - Test environment configured on the self-hosted runner (see [Test Environment](#test-environment) below)
 
@@ -176,7 +176,7 @@ make build VERSION=v0.7.0-dev
 # Or use dev_overrides in ~/.terraformrc / tofu config:
 provider_installation {
   dev_overrides {
-    "registry.terraform.io/scality/scality" = "/path/to/built/binary/directory"
+    "registry.terraform.io/cmrh/scality" = "/path/to/built/binary/directory"
   }
   direct {}
 }
@@ -191,14 +191,14 @@ Both registries auto-discover releases from GitHub — no manual upload needed. 
 - Release artifacts must include signed SHA256SUMS
 - GPG public key must be registered with the registry
 
-The provider is published under `scality/scality` in both registries. Users use it as:
+The provider is published under `cmrh/scality` in both registries. Users use it as:
 
 ```hcl
 terraform {
   required_providers {
     scality = {
-      source  = "scality/scality"
-      version = "~> 0.7.0"
+      source  = "cmrh/scality"
+      version = "~> 1.0"
     }
   }
 }

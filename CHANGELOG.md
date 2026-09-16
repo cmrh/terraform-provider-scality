@@ -5,7 +5,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ## [Unreleased]
 
 ### Removed
-- Dead code with no production callers: `validators.JSONDocument()` (superseded by the `jsontypes.Normalized` type) and `IAMClient.DeleteAccountAccessKey` (superseded by the per-account key-delete path), plus their tests. (#XX)
+- Dead code with no production callers: `validators.JSONDocument()` (superseded by the `jsontypes.Normalized` type) and `IAMClient.DeleteAccountAccessKey` (superseded by the per-account key-delete path), plus their tests. (#48)
 
 ### Changed
 - `govulncheck` moved off PR CI. It now blocks in `release.yml` (a release can't ship a reachable vuln) and runs weekly, non-blocking, in `security-scan.yml`. PRs no longer go red when the vulnerability DB updates on unchanged code. (#42)
