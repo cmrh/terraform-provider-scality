@@ -377,28 +377,6 @@ func (c *IAMClient) GenerateAccountAccessKey(ctx context.Context, accountName st
 	return &result, nil
 }
 
-// DeleteAccountAccessKey deletes an access key for an account (admin-level).
-func (c *IAMClient) DeleteAccountAccessKey(ctx context.Context, accessKeyID, accountName string) error {
-	params := url.Values{}
-	params.Set("AccessKeyId", accessKeyID)
-	params.Set("AccountName", accountName)
-
-	body, statusCode, err := c.DoSignedRequest(ctx, "DeleteAccessKey", params)
-	if err != nil {
-		return err
-	}
-
-	if statusCode == 404 {
-		return nil
-	}
-
-	if statusCode != 200 {
-		return fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
-	}
-
-	return nil
-}
-
 // GetAccount retrieves account details (for Read/refresh).
 func (c *IAMClient) GetAccount(ctx context.Context, accountName string) (*AccountGetResponse, error) {
 	params := url.Values{}

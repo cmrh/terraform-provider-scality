@@ -2,7 +2,6 @@ package validators
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -93,30 +92,6 @@ func (v stringOneOf) ValidateString(_ context.Context, req validator.StringReque
 	)
 }
 
-type jsonString struct{}
-
-func (v jsonString) Description(_ context.Context) string {
-	return "must be valid JSON"
-}
-
-func (v jsonString) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v jsonString) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	val := req.ConfigValue.ValueString()
-	if !json.Valid([]byte(val)) {
-		resp.Diagnostics.AddAttributeError(
-			req.Path,
-			"Invalid JSON",
-			"must be a valid JSON document",
-		)
-	}
-}
-
 type int64AtLeast struct {
 	min int64
 }
@@ -181,12 +156,6 @@ func IAMName(maxLen int) []validator.String {
 func PolicyARN() []validator.String {
 	return []validator.String{
 		stringMatchRegex{regex: arnRegex, message: "must be a valid IAM policy ARN (arn:aws:iam::*:policy/*)"},
-	}
-}
-
-func JSONDocument() []validator.String {
-	return []validator.String{
-		jsonString{},
 	}
 }
 
