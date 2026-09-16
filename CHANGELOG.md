@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-09-16
+
 ### Removed
 - Dead code with no production callers: `validators.JSONDocument()` (superseded by the `jsontypes.Normalized` type) and `IAMClient.DeleteAccountAccessKey` (superseded by the per-account key-delete path), plus their tests. (#48)
 
