@@ -26,14 +26,14 @@ make install VERSION=0.4.1-dev
 ```
 
 This drops the binary at
-`~/.terraform.d/plugins/registry.terraform.io/scality/scality/<VERSION>/<OS>_<ARCH>/`.
+`~/.terraform.d/plugins/registry.terraform.io/cmrh/scality/<VERSION>/<OS>_<ARCH>/`.
 
 For interactive development, configure dev_overrides in `~/.terraformrc`:
 
 ```hcl
 provider_installation {
   dev_overrides {
-    "scality/scality" = "/path/to/your/built/binary/dir"
+    "cmrh/scality" = "/path/to/your/built/binary/dir"
   }
   direct {}
 }
