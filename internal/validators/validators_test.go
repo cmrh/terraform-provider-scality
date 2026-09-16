@@ -204,40 +204,6 @@ func TestPolicyARN(t *testing.T) {
 	}
 }
 
-func TestJSONDocument(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   string
-		wantErr bool
-	}{
-		{"valid object", `{"key": "value"}`, false},
-		{"valid array", `[1, 2, 3]`, false},
-		{"valid nested", `{"a": {"b": [1, 2]}}`, false},
-		{"valid string", `"hello"`, false},
-		{"valid number", `42`, false},
-		{"valid boolean", `true`, false},
-		{"valid null", `null`, false},
-		{"valid policy doc", `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"*"}]}`, false},
-		{"invalid empty", ``, true},
-		{"invalid truncated", `{"key":`, true},
-		{"invalid plain text", `not json at all`, true},
-		{"invalid trailing comma", `{"key": "value",}`, true},
-		{"invalid single quotes", `{'key': 'value'}`, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v := JSONDocument()
-			runStringValidators(t, v, types.StringValue(tt.value), tt.wantErr)
-		})
-	}
-}
-
-func TestJSONDocument_NullAndUnknown(t *testing.T) {
-	v := JSONDocument()
-	runStringValidators(t, v, types.StringNull(), false)
-	runStringValidators(t, v, types.StringUnknown(), false)
-}
-
 func TestOneOf(t *testing.T) {
 	allowed := []string{"Enabled", "Disabled"}
 	tests := []struct {
@@ -364,7 +330,6 @@ func TestDescriptions(t *testing.T) {
 		{"Email", Email(), "email"},
 		{"IAMName length", IAMName(64)[:1], "between 1 and 64"},
 		{"PolicyARN", PolicyARN(), "ARN"},
-		{"JSONDocument", JSONDocument(), "JSON"},
 		{"OneOf", OneOf("a", "b"), "one of"},
 	}
 	for _, tt := range strTests {

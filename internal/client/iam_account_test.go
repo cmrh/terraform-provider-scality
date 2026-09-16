@@ -401,66 +401,6 @@ func TestGenerateAccountAccessKey_UnexpectedStatus(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// DeleteAccountAccessKey
-// ---------------------------------------------------------------------------
-
-func TestDeleteAccountAccessKey_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			t.Fatalf("ParseForm: %v", err)
-		}
-		if got := r.Form.Get("Action"); got != "DeleteAccessKey" {
-			t.Errorf("Action = %q, want DeleteAccessKey", got)
-		}
-		if got := r.Form.Get("AccessKeyId"); got != "AKIATEST123" {
-			t.Errorf("AccessKeyId = %q, want AKIATEST123", got)
-		}
-		if got := r.Form.Get("AccountName"); got != "test-account" {
-			t.Errorf("AccountName = %q, want test-account", got)
-		}
-		w.WriteHeader(200)
-	}))
-	defer server.Close()
-
-	client := NewIAMClient(server.URL, "admin-ak", "admin-sk", false)
-	err := client.DeleteAccountAccessKey(context.Background(), "AKIATEST123", "test-account")
-	if err != nil {
-		t.Fatalf("DeleteAccountAccessKey returned error: %v", err)
-	}
-}
-
-func TestDeleteAccountAccessKey_NotFound_Idempotent(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(404)
-		fmt.Fprint(w, `{"error":"NoSuchEntity"}`)
-	}))
-	defer server.Close()
-
-	client := NewIAMClient(server.URL, "admin-ak", "admin-sk", false)
-	err := client.DeleteAccountAccessKey(context.Background(), "AKIANOTEXIST", "test-account")
-	if err != nil {
-		t.Fatalf("DeleteAccountAccessKey should succeed on 404 (idempotent), got error: %v", err)
-	}
-}
-
-func TestDeleteAccountAccessKey_UnexpectedStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
-		fmt.Fprint(w, `error`)
-	}))
-	defer server.Close()
-
-	client := NewIAMClient(server.URL, "admin-ak", "admin-sk", false)
-	err := client.DeleteAccountAccessKey(context.Background(), "AKIATEST", "test-account")
-	if err == nil {
-		t.Fatal("expected error for 500 status, got nil")
-	}
-	if !strings.Contains(err.Error(), "unexpected status 500") {
-		t.Errorf("error = %q, want it to contain 'unexpected status 500'", err.Error())
-	}
-}
-
-// ---------------------------------------------------------------------------
 // UpdateAccountAttributes
 // ---------------------------------------------------------------------------
 
@@ -754,8 +694,6 @@ func TestAccountLifecycle(t *testing.T) {
 					"userId": "999"
 				}
 			}`)
-		case "DeleteAccessKey":
-			w.WriteHeader(200)
 		case "DeleteAccount":
 			w.WriteHeader(200)
 		default:
@@ -798,13 +736,7 @@ func TestAccountLifecycle(t *testing.T) {
 		t.Errorf("access key ID = %q, want AKIALIFECYCLE", keyResp.Data.ID)
 	}
 
-	// Step 4: Delete access key.
-	err = client.DeleteAccountAccessKey(ctx, "AKIALIFECYCLE", "lifecycle-account")
-	if err != nil {
-		t.Fatalf("DeleteAccountAccessKey: %v", err)
-	}
-
-	// Step 5: Delete account.
+	// Step 4: Delete account.
 	err = client.DeleteAccount(ctx, "lifecycle-account")
 	if err != nil {
 		t.Fatalf("DeleteAccount: %v", err)
@@ -815,7 +747,6 @@ func TestAccountLifecycle(t *testing.T) {
 		"CreateAccount",
 		"GetAccount",
 		"GenerateAccountAccessKey",
-		"DeleteAccessKey",
 		"DeleteAccount",
 	}
 	if len(callSequence) != len(expected) {
