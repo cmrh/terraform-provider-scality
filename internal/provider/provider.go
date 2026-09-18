@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -37,14 +38,20 @@ type ScalityProvider struct {
 }
 
 type ScalityProviderModel struct {
-	Endpoint           types.String `tfsdk:"endpoint"`
-	AccessKey          types.String `tfsdk:"access_key"`
-	SecretKey          types.String `tfsdk:"secret_key"`
-	Region             types.String `tfsdk:"region"`
-	ConsoleEndpoint    types.String `tfsdk:"console_endpoint"`
-	ConsoleUsername    types.String `tfsdk:"console_username"`
-	ConsolePassword    types.String `tfsdk:"console_password"`
-	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
+	Endpoint           types.String     `tfsdk:"endpoint"`
+	AccessKey          types.String     `tfsdk:"access_key"`
+	SecretKey          types.String     `tfsdk:"secret_key"`
+	Region             types.String     `tfsdk:"region"`
+	ConsoleEndpoint    types.String     `tfsdk:"console_endpoint"`
+	ConsoleUsername    types.String     `tfsdk:"console_username"`
+	ConsolePassword    types.String     `tfsdk:"console_password"`
+	InsecureSkipVerify types.Bool       `tfsdk:"insecure_skip_verify"`
+	AssumeRole         *assumeRoleModel `tfsdk:"assume_role"`
+}
+
+type assumeRoleModel struct {
+	RoleArn     types.String `tfsdk:"role_arn"`
+	SessionName types.String `tfsdk:"session_name"`
 }
 
 func (p *ScalityProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -91,6 +98,21 @@ func (p *ScalityProvider) Schema(ctx context.Context, req provider.SchemaRequest
 			"insecure_skip_verify": schema.BoolAttribute{
 				Description: "Skip TLS certificate verification (useful for self-signed certificates). Can also be set via SCALITY_INSECURE_SKIP_VERIFY environment variable.",
 				Optional:    true,
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"assume_role": schema.SingleNestedBlock{
+				Description: "Assume an IAM role via STS for cross-account access. The configured access_key/secret_key (an account identity) are exchanged for temporary role credentials, which per-account resources use when they omit their own account_access_key/account_secret_key. Use one aliased provider per target account. Credentials are assumed once at configuration; a very long apply could outlive them.",
+				Attributes: map[string]schema.Attribute{
+					"role_arn": schema.StringAttribute{
+						Description: "ARN of the role to assume, e.g. \"arn:aws:iam::<account-id>:role/<name>\". Required when the assume_role block is set (Optional here because a Required attribute in a SingleNestedBlock would force the block onto every configuration).",
+						Optional:    true,
+					},
+					"session_name": schema.StringAttribute{
+						Description: "Session name for the assumed role. Defaults to \"terraform\".",
+						Optional:    true,
+					},
+				},
 			},
 		},
 	}
@@ -186,6 +208,43 @@ func (p *ScalityProvider) Configure(ctx context.Context, req provider.ConfigureR
 		IAM:     iamClient,
 		Console: consoleClient,
 		S3:      s3Client,
+	}
+
+	// assume_role: exchange the configured account credentials for temporary
+	// role credentials that per-account resources fall back to. Assumed once here.
+	if config.AssumeRole != nil {
+		roleArn := config.AssumeRole.RoleArn.ValueString()
+		if roleArn == "" {
+			resp.Diagnostics.AddError(
+				"assume_role.role_arn is required",
+				"The assume_role block is set but role_arn is empty. Set role_arn to the ARN of the role to assume, or remove the assume_role block.",
+			)
+			return
+		}
+		if endpoint == "" || accessKey == "" || secretKey == "" {
+			resp.Diagnostics.AddError(
+				"assume_role requires base credentials",
+				"endpoint, access_key, and secret_key must be set to assume a role — they are the account identity used to call STS AssumeRole.",
+			)
+			return
+		}
+		sessionName := "terraform"
+		if config.AssumeRole.SessionName.ValueString() != "" {
+			sessionName = config.AssumeRole.SessionName.ValueString()
+		}
+		sts := client.NewSTSClient(endpoint, insecureSkipVerify)
+		if region != "" {
+			sts.Region = region
+		}
+		assumed, err := sts.AssumeRole(ctx, accessKey, secretKey, roleArn, sessionName)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to assume role",
+				fmt.Sprintf("STS AssumeRole for %q failed: %s", roleArn, err),
+			)
+			return
+		}
+		clientData.SetAssumed(assumed)
 	}
 
 	resp.DataSourceData = clientData

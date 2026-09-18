@@ -24,8 +24,8 @@ resource "scality_bucket_encryption" "data" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `bucket` | String | Yes | Target bucket name. Changing this replaces the resource. |
 | `sse_algorithm` | String | Yes | Encryption algorithm: `AES256` (SSE-S3) or `aws:kms` (SSE-KMS). |
 | `kms_master_key_id` | String | No | KMS key ID. Only used when `sse_algorithm` is `aws:kms`. |

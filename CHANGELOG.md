@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Added
+- Provider-level `assume_role { role_arn, session_name }` block for delegated cross-account management. A management account's credentials are exchanged once, at provider configuration, for temporary role credentials via STS; per-account resources fall back to those credentials whenever they omit their own `account_access_key`/`account_secret_key`. Use one aliased provider per target account. Credentials are held in memory only and never written to state; automatic refresh is not yet supported. `account_access_key`/`account_secret_key` are now optional on all per-account resources (explicit values still take precedence). STS shares the IAM endpoint and is an account-level operation — the superadmin account-management APIs do not support it. (#52)
+
 ## [1.0.2] - 2026-09-16
 
 ### Removed

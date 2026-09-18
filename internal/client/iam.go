@@ -47,6 +47,10 @@ type IAMClient struct {
 	SecretKey  string
 	Region     string
 	HTTPClient *http.Client
+	// SessionToken, when set, is sent as X-Amz-Security-Token on the per-account
+	// signing path (doSignedRequest) — set when the credentials are STS
+	// assumed-role credentials. The admin/superadmin path never carries it.
+	SessionToken string
 }
 
 // NewIAMClient creates a new Scality IAM API client. Region defaults to awsRegion.
@@ -199,6 +203,12 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-date:%s\n", host, amzdate)
 	signedHeaders := "host;x-amz-date"
+	// Assumed-role credentials carry a session token that must be signed. It
+	// sorts last among these header names.
+	if c.SessionToken != "" {
+		canonicalHeaders += fmt.Sprintf("x-amz-security-token:%s\n", c.SessionToken)
+		signedHeaders += ";x-amz-security-token"
+	}
 	payloadHash := sha256Hex([]byte(body))
 
 	canonicalRequest := strings.Join([]string{
@@ -233,6 +243,9 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 	httpReq.Header.Set("Host", host)
 	httpReq.Header.Set("X-Amz-Date", amzdate)
 	httpReq.Header.Set("Authorization", authHeader)
+	if c.SessionToken != "" {
+		httpReq.Header.Set("X-Amz-Security-Token", c.SessionToken)
+	}
 
 	resp, err := c.HTTPClient.Do(httpReq)
 	if err != nil {

@@ -30,10 +30,68 @@ provider "scality" {
   # Optional
   region               = "us-east-1"  # SigV4 signing region, or SCALITY_REGION (default: us-east-1)
   insecure_skip_verify = true         # Skip TLS verification (self-signed certs)
+
+  # Optional: assume a role in another account (see "Delegated Cross-Account Management")
+  assume_role {
+    role_arn     = "arn:aws:iam::123456789012:role/account-manager"
+    session_name = "terraform"  # optional, defaults to "terraform"
+  }
 }
 ```
 
-You only need to configure the APIs you use. An IAM endpoint alone is sufficient for per-account resources (buckets, users, groups).
+You only need to configure the APIs you use. An IAM endpoint alone is sufficient for per-account resources (buckets, users, groups). The same endpoint serves the STS, IAM, S3, and superadmin APIs; the load balancer routes each request to the right backend.
+
+## Delegated Cross-Account Management (`assume_role`)
+
+A management account can manage resources in other accounts without holding each
+account's long-lived keys. Configure the management account's own credentials on
+the provider, add an `assume_role` block naming a role in the target account, and
+the provider exchanges them once (at configuration) for temporary role
+credentials via STS. Per-account resources then fall back to those temporary
+credentials whenever they omit their own `account_access_key` /
+`account_secret_key`.
+
+```hcl
+# Management account's identity (an account, not the platform superadmin).
+provider "scality" {
+  endpoint   = "http://scality.example.com:8080"
+  access_key = var.mgmt_ak
+  secret_key = var.mgmt_sk
+}
+
+# One aliased provider per customer account, each assuming that account's role.
+provider "scality" {
+  alias      = "customer_a"
+  endpoint   = "http://scality.example.com:8080"
+  access_key = var.mgmt_ak
+  secret_key = var.mgmt_sk
+
+  assume_role {
+    role_arn = "arn:aws:iam::111111111111:role/account-manager"
+  }
+}
+
+# No account_access_key/account_secret_key needed — the assumed role is used.
+resource "scality_bucket" "data" {
+  provider = scality.customer_a
+  bucket   = "customer-a-data"
+}
+```
+
+Notes:
+
+- The base credentials must be an **account identity**, not the platform
+  superadmin. STS assume-role is an account-level operation; the superadmin
+  account-management APIs do not support it.
+- The target role's trust policy must allow the management account as a
+  principal. See [`scality_iam_role`](resources/scality_iam_role.md) for the
+  principal forms Vault accepts.
+- Credentials are assumed **once** at provider configuration and held in memory
+  (never written to state). A very long single apply could outlive them;
+  re-running picks up fresh credentials. Automatic refresh is not yet supported.
+- Explicit `account_access_key` / `account_secret_key` on a resource always take
+  precedence, so mixing assumed and explicit credentials in one configuration
+  works.
 
 ## Resources
 

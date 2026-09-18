@@ -21,7 +21,7 @@ var _ resource.Resource = &UserPolicyResource{}
 var _ resource.ResourceWithImportState = &UserPolicyResource{}
 
 type UserPolicyResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewUserPolicyResource() resource.Resource {
@@ -38,16 +38,16 @@ func (r *UserPolicyResource) Schema(ctx context.Context, req resource.SchemaRequ
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this user",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this user. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this user",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this user. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -100,7 +100,7 @@ func (r *UserPolicyResource) Configure(ctx context.Context, req resource.Configu
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *UserPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -116,13 +116,13 @@ func (r *UserPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 		"policy_name": data.PolicyName.ValueString(),
 	})
 
-	err := r.client.PutUserPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-		data.PolicyName.ValueString(),
-		data.PolicyDocument.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	err = c.PutUserPolicy(ctx, ak, sk, data.Username.ValueString(), data.PolicyName.ValueString(), data.PolicyDocument.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create user policy: %s", err))
 		return
@@ -139,12 +139,13 @@ func (r *UserPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	policyDoc, err := r.client.GetUserPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-		data.PolicyName.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	policyDoc, err := c.GetUserPolicy(ctx, ak, sk, data.Username.ValueString(), data.PolicyName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read user policy: %s", err))
 		return
@@ -173,13 +174,13 @@ func (r *UserPolicyResource) Update(ctx context.Context, req resource.UpdateRequ
 		"policy_name": data.PolicyName.ValueString(),
 	})
 
-	err := r.client.PutUserPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-		data.PolicyName.ValueString(),
-		data.PolicyDocument.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	err = c.PutUserPolicy(ctx, ak, sk, data.Username.ValueString(), data.PolicyName.ValueString(), data.PolicyDocument.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update user policy: %s", err))
 		return
@@ -201,12 +202,13 @@ func (r *UserPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 		"policy_name": data.PolicyName.ValueString(),
 	})
 
-	err := r.client.DeleteUserPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-		data.PolicyName.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	err = c.DeleteUserPolicy(ctx, ak, sk, data.Username.ValueString(), data.PolicyName.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -231,6 +233,16 @@ func (r *UserPolicyResource) ImportState(ctx context.Context, req resource.Impor
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), idParts[0])...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("policy_name"), idParts[1])...)
 		return
+	}
+
+	// Provider assumed-role credentials: USERNAME:POLICY_NAME ID, credentials
+	// resolved from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil {
+		if parts := strings.Split(req.ID, ":"); len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), parts[0])...)
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("policy_name"), parts[1])...)
+			return
+		}
 	}
 
 	parts := strings.SplitN(req.ID, ":", 4)

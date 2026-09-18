@@ -28,8 +28,8 @@ resource "scality_group_membership" "developers" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. Forces replacement. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. Forces replacement. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
 | `group_name` | String | Yes | Target group. Forces replacement. |
 | `users` | Set(String) | Yes | Complete set of usernames that should belong to the group. |
 

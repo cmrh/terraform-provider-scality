@@ -20,7 +20,7 @@ var _ resource.Resource = &IAMRolePolicyAttachmentResource{}
 var _ resource.ResourceWithImportState = &IAMRolePolicyAttachmentResource{}
 
 type IAMRolePolicyAttachmentResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewIAMRolePolicyAttachmentResource() resource.Resource {
@@ -37,16 +37,16 @@ func (r *IAMRolePolicyAttachmentResource) Schema(ctx context.Context, req resour
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this role and policy",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this role and policy. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this role and policy",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this role and policy. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -94,7 +94,7 @@ func (r *IAMRolePolicyAttachmentResource) Configure(ctx context.Context, req res
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *IAMRolePolicyAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -105,18 +105,18 @@ func (r *IAMRolePolicyAttachmentResource) Create(ctx context.Context, req resour
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
 	tflog.Debug(ctx, "Attaching policy to role", map[string]any{
 		"role_name":  data.RoleName.ValueString(),
 		"policy_arn": data.PolicyArn.ValueString(),
 	})
 
-	err := r.client.AttachRolePolicy(ctx, ak, sk,
-		data.RoleName.ValueString(),
-		data.PolicyArn.ValueString(),
-	)
+	err = c.AttachRolePolicy(ctx, ak, sk, data.RoleName.ValueString(), data.PolicyArn.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to attach policy to role: %s", err))
 		return
@@ -133,10 +133,13 @@ func (r *IAMRolePolicyAttachmentResource) Read(ctx context.Context, req resource
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
-	policies, err := r.client.ListAttachedRolePolicies(ctx, ak, sk, data.RoleName.ValueString())
+	policies, err := c.ListAttachedRolePolicies(ctx, ak, sk, data.RoleName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list attached role policies: %s", err))
 		return
@@ -174,18 +177,18 @@ func (r *IAMRolePolicyAttachmentResource) Delete(ctx context.Context, req resour
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
 	tflog.Debug(ctx, "Detaching policy from role", map[string]any{
 		"role_name":  data.RoleName.ValueString(),
 		"policy_arn": data.PolicyArn.ValueString(),
 	})
 
-	err := r.client.DetachRolePolicy(ctx, ak, sk,
-		data.RoleName.ValueString(),
-		data.PolicyArn.ValueString(),
-	)
+	err = c.DetachRolePolicy(ctx, ak, sk, data.RoleName.ValueString(), data.PolicyArn.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -211,6 +214,16 @@ func (r *IAMRolePolicyAttachmentResource) ImportState(ctx context.Context, req r
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), idParts[0])...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("policy_arn"), idParts[1])...)
 		return
+	}
+
+	// Provider assumed-role credentials: ROLE_NAME:POLICY_ARN ID (second part
+	// starts with "arn:"), credentials resolved from the provider at read time.
+	if r.clients != nil && r.clients.Assumed != nil {
+		if idParts := strings.SplitN(req.ID, ":", 2); len(idParts) == 2 && idParts[0] != "" && strings.HasPrefix(idParts[1], "arn:") {
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), idParts[0])...)
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("policy_arn"), idParts[1])...)
+			return
+		}
 	}
 
 	// ARN contains colons, so use SplitN with 4 — everything after the third : is the policy ARN

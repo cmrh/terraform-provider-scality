@@ -21,7 +21,7 @@ var _ resource.Resource = &BucketReplicationResource{}
 var _ resource.ResourceWithImportState = &BucketReplicationResource{}
 
 type BucketReplicationResource struct {
-	client *client.S3Client
+	clients *client.ProviderClients
 }
 
 func NewBucketReplicationResource() resource.Resource {
@@ -36,12 +36,14 @@ func (r *BucketReplicationResource) Schema(ctx context.Context, req resource.Sch
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
+				MarkdownDescription: "Access key of the account that owns this bucket. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
+				Sensitive:           true,
 			},
 			"account_secret_key": schema.StringAttribute{
-				Required:  true,
-				Sensitive: true,
+				MarkdownDescription: "Secret key of the account that owns this bucket. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
+				Sensitive:           true,
 			},
 			"bucket": schema.StringAttribute{
 				Required:   true,
@@ -107,7 +109,7 @@ func (r *BucketReplicationResource) Configure(ctx context.Context, req resource.
 		return
 	}
 
-	r.client = clients.S3
+	r.clients = clients
 }
 
 func modelRulesToClient(rules []ReplicationRuleModel) []client.ReplicationRule {
@@ -158,8 +160,11 @@ func (r *BucketReplicationResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
 	tflog.Debug(ctx, "Creating bucket replication configuration", map[string]interface{}{
@@ -168,12 +173,12 @@ func (r *BucketReplicationResource) Create(ctx context.Context, req resource.Cre
 
 	clientRules := modelRulesToClient(data.Rules)
 
-	if err := r.client.PutBucketReplication(ctx, ak, sk, bucket, data.Role.ValueString(), clientRules); err != nil {
+	if err := c.PutBucketReplication(ctx, ak, sk, bucket, data.Role.ValueString(), clientRules); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket replication: %s", err))
 		return
 	}
 
-	_, rules, err := r.client.GetBucketReplication(ctx, ak, sk, bucket)
+	_, rules, err := c.GetBucketReplication(ctx, ak, sk, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read back bucket replication after create: %s", err))
 		return
@@ -191,11 +196,14 @@ func (r *BucketReplicationResource) Read(ctx context.Context, req resource.ReadR
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
-	role, rules, err := r.client.GetBucketReplication(ctx, ak, sk, bucket)
+	role, rules, err := c.GetBucketReplication(ctx, ak, sk, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket replication: %s", err))
 		return
@@ -220,13 +228,16 @@ func (r *BucketReplicationResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
 	clientRules := modelRulesToClient(data.Rules)
 
-	if err := r.client.PutBucketReplication(ctx, ak, sk, bucket, data.Role.ValueString(), clientRules); err != nil {
+	if err := c.PutBucketReplication(ctx, ak, sk, bucket, data.Role.ValueString(), clientRules); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket replication: %s", err))
 		return
 	}
@@ -242,15 +253,17 @@ func (r *BucketReplicationResource) Delete(ctx context.Context, req resource.Del
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Deleting bucket replication configuration", map[string]interface{}{
 		"bucket": data.Bucket.ValueString(),
 	})
 
-	err := r.client.DeleteBucketReplication(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-	)
+	err = c.DeleteBucketReplication(ctx, ak, sk, data.Bucket.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			tflog.Warn(ctx, "Bucket or account already removed, skipping replication delete", map[string]interface{}{
@@ -274,6 +287,17 @@ func (r *BucketReplicationResource) ImportState(ctx context.Context, req resourc
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare BUCKET_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: BUCKET_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
 		return
 	}

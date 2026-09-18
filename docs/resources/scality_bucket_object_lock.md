@@ -33,8 +33,8 @@ resource "scality_bucket_object_lock" "compliance" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `bucket` | String | Yes | Target bucket name. Changing this replaces the resource. |
 | `retention_mode` | String | Yes | `GOVERNANCE` or `COMPLIANCE`. |
 | `retention_days` | Int | No | Retention period in days. Mutually exclusive with `retention_years`. |

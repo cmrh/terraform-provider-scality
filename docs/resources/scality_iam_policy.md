@@ -33,8 +33,8 @@ resource "scality_iam_policy" "replication" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. Changing this replaces the resource. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. Changing this replaces the resource. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
 | `policy_name` | String | Yes | Name of the IAM policy. Changing this replaces the resource. |
 | `policy_document` | String | Yes | JSON policy document. Can be updated in-place. |
 

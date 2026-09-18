@@ -39,8 +39,8 @@ resource "scality_bucket" "locked" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `bucket` | String | Yes | Bucket name. Changing this replaces the resource. |
 | `object_lock_enabled` | Bool | No | Enable Object Lock on the bucket. Can only be set at creation time. Changing this replaces the resource. |
 | `versioning` | Bool | No | Enable versioning on the bucket. |

@@ -21,7 +21,7 @@ var _ resource.Resource = &BucketObjectLockResource{}
 var _ resource.ResourceWithImportState = &BucketObjectLockResource{}
 
 type BucketObjectLockResource struct {
-	client *client.S3Client
+	clients *client.ProviderClients
 }
 
 func NewBucketObjectLockResource() resource.Resource {
@@ -38,13 +38,13 @@ func (r *BucketObjectLockResource) Schema(ctx context.Context, req resource.Sche
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this bucket. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this bucket. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"bucket": schema.StringAttribute{
@@ -94,7 +94,7 @@ func (r *BucketObjectLockResource) Configure(ctx context.Context, req resource.C
 		return
 	}
 
-	r.client = clients.S3
+	r.clients = clients
 }
 
 func (r *BucketObjectLockResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -105,8 +105,11 @@ func (r *BucketObjectLockResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
 	tflog.Debug(ctx, "Setting object lock configuration", map[string]interface{}{
@@ -126,7 +129,7 @@ func (r *BucketObjectLockResource) Create(ctx context.Context, req resource.Crea
 		config.RetentionYears = int(data.RetentionYears.ValueInt64())
 	}
 
-	if err := r.client.PutObjectLockConfiguration(ctx, ak, sk, bucket, config); err != nil {
+	if err := c.PutObjectLockConfiguration(ctx, ak, sk, bucket, config); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set object lock configuration: %s", err))
 		return
 	}
@@ -142,11 +145,14 @@ func (r *BucketObjectLockResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
-	result, err := r.client.GetObjectLockConfiguration(ctx, ak, sk, bucket)
+	result, err := c.GetObjectLockConfiguration(ctx, ak, sk, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read object lock configuration: %s", err))
 		return
@@ -182,8 +188,11 @@ func (r *BucketObjectLockResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
 	config := client.ObjectLockConfig{
@@ -199,7 +208,7 @@ func (r *BucketObjectLockResource) Update(ctx context.Context, req resource.Upda
 		config.RetentionYears = int(data.RetentionYears.ValueInt64())
 	}
 
-	if err := r.client.PutObjectLockConfiguration(ctx, ak, sk, bucket, config); err != nil {
+	if err := c.PutObjectLockConfiguration(ctx, ak, sk, bucket, config); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update object lock configuration: %s", err))
 		return
 	}
@@ -215,16 +224,17 @@ func (r *BucketObjectLockResource) Delete(ctx context.Context, req resource.Dele
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Removing object lock default retention", map[string]interface{}{
 		"bucket": data.Bucket.ValueString(),
 	})
 
-	err := r.client.PutObjectLockConfiguration(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-		client.ObjectLockConfig{Enabled: true},
-	)
+	err = c.PutObjectLockConfiguration(ctx, ak, sk, data.Bucket.ValueString(), client.ObjectLockConfig{Enabled: true})
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -245,6 +255,17 @@ func (r *BucketObjectLockResource) ImportState(ctx context.Context, req resource
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare BUCKET_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: BUCKET_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
 		return
 	}

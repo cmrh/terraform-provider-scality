@@ -37,8 +37,8 @@ output "stable_credentials" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Existing access key for the account. Sensitive. Forces replacement. |
-| `account_secret_key` | String | Yes | Existing secret key for the account. Sensitive. Forces replacement. |
+| `account_access_key` | String | No | Existing access key for the account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Existing secret key for the account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
 
 ## Attributes Exported
 

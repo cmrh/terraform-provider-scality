@@ -22,7 +22,7 @@ var _ resource.Resource = &BucketResource{}
 var _ resource.ResourceWithImportState = &BucketResource{}
 
 type BucketResource struct {
-	client *client.S3Client
+	clients *client.ProviderClients
 }
 
 func NewBucketResource() resource.Resource {
@@ -39,13 +39,13 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this bucket. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this bucket. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"bucket": schema.StringAttribute{
@@ -98,7 +98,7 @@ func (r *BucketResource) Configure(ctx context.Context, req resource.ConfigureRe
 		return
 	}
 
-	r.client = clients.S3
+	r.clients = clients
 }
 
 func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -109,8 +109,11 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
 	tflog.Debug(ctx, "Creating S3 bucket", map[string]interface{}{
@@ -119,7 +122,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	objectLockEnabled := !data.ObjectLockEnabled.IsNull() && data.ObjectLockEnabled.ValueBool()
 
-	if err := r.client.CreateBucket(ctx, ak, sk, bucket, objectLockEnabled); err != nil {
+	if err := c.CreateBucket(ctx, ak, sk, bucket, objectLockEnabled); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket: %s", err))
 		return
 	}
@@ -129,7 +132,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		if data.Versioning.ValueBool() {
 			status = "Enabled"
 		}
-		if err := r.client.PutBucketVersioning(ctx, ak, sk, bucket, status); err != nil {
+		if err := c.PutBucketVersioning(ctx, ak, sk, bucket, status); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set bucket versioning: %s", err))
 			return
 		}
@@ -142,7 +145,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 			return
 		}
 		if len(tags) > 0 {
-			if err := r.client.PutBucketTagging(ctx, ak, sk, bucket, tags); err != nil {
+			if err := c.PutBucketTagging(ctx, ak, sk, bucket, tags); err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set bucket tags: %s", err))
 				return
 			}
@@ -160,11 +163,14 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
-	exists, err := r.client.HeadBucket(ctx, ak, sk, bucket)
+	exists, err := c.HeadBucket(ctx, ak, sk, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket: %s", err))
 		return
@@ -176,7 +182,7 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	if !data.Versioning.IsNull() {
-		status, err := r.client.GetBucketVersioning(ctx, ak, sk, bucket)
+		status, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket versioning: %s", err))
 			return
@@ -192,7 +198,7 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	if !data.Tags.IsNull() {
-		tags, err := r.client.GetBucketTagging(ctx, ak, sk, bucket)
+		tags, err := c.GetBucketTagging(ctx, ak, sk, bucket)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket tags: %s", err))
 			return
@@ -225,13 +231,16 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	ak := plan.AccountAccessKey.ValueString()
-	sk := plan.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(plan.AccountAccessKey.ValueString(), plan.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := plan.Bucket.ValueString()
 
 	if !plan.Versioning.Equal(state.Versioning) {
 		if plan.Versioning.IsNull() {
-			if err := r.client.PutBucketVersioning(ctx, ak, sk, bucket, "Suspended"); err != nil {
+			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Suspended"); err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to suspend bucket versioning: %s", err))
 				return
 			}
@@ -240,7 +249,7 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 			if plan.Versioning.ValueBool() {
 				status = "Enabled"
 			}
-			if err := r.client.PutBucketVersioning(ctx, ak, sk, bucket, status); err != nil {
+			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, status); err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket versioning: %s", err))
 				return
 			}
@@ -249,7 +258,7 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	if !plan.Tags.Equal(state.Tags) {
 		if plan.Tags.IsNull() {
-			if err := r.client.DeleteBucketTagging(ctx, ak, sk, bucket); err != nil {
+			if err := c.DeleteBucketTagging(ctx, ak, sk, bucket); err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete bucket tags: %s", err))
 				return
 			}
@@ -260,12 +269,12 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 				return
 			}
 			if len(tags) == 0 {
-				if err := r.client.DeleteBucketTagging(ctx, ak, sk, bucket); err != nil {
+				if err := c.DeleteBucketTagging(ctx, ak, sk, bucket); err != nil {
 					resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete bucket tags: %s", err))
 					return
 				}
 			} else {
-				if err := r.client.PutBucketTagging(ctx, ak, sk, bucket, tags); err != nil {
+				if err := c.PutBucketTagging(ctx, ak, sk, bucket, tags); err != nil {
 					resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket tags: %s", err))
 					return
 				}
@@ -284,15 +293,17 @@ func (r *BucketResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Deleting S3 bucket", map[string]interface{}{
 		"bucket": data.Bucket.ValueString(),
 	})
 
-	err := r.client.DeleteBucket(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-	)
+	err = c.DeleteBucket(ctx, ak, sk, data.Bucket.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -313,6 +324,17 @@ func (r *BucketResource) ImportState(ctx context.Context, req resource.ImportSta
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare BUCKET_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: BUCKET_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
 		return
 	}

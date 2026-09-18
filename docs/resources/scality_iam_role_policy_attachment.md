@@ -24,8 +24,8 @@ resource "scality_iam_role_policy_attachment" "replication" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. Changing this replaces the resource. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. Changing this replaces the resource. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
 | `role_name` | String | Yes | Name of the IAM role to attach the policy to. Changing this replaces the resource. |
 | `policy_arn` | String | Yes | ARN of the IAM managed policy to attach. Changing this replaces the resource. |
 
