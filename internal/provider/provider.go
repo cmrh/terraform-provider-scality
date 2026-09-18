@@ -17,6 +17,7 @@ import (
 	"github.com/cmrh/terraform-provider-scality/internal/resources/bucket"
 	bucketencryption "github.com/cmrh/terraform-provider-scality/internal/resources/bucket_encryption"
 	bucketlifecycle "github.com/cmrh/terraform-provider-scality/internal/resources/bucket_lifecycle"
+	bucketlogging "github.com/cmrh/terraform-provider-scality/internal/resources/bucket_logging"
 	bucketobjectlock "github.com/cmrh/terraform-provider-scality/internal/resources/bucket_object_lock"
 	bucketpolicy "github.com/cmrh/terraform-provider-scality/internal/resources/bucket_policy"
 	bucketreplication "github.com/cmrh/terraform-provider-scality/internal/resources/bucket_replication"
@@ -259,6 +260,7 @@ func (p *ScalityProvider) resourceFactories() []func() resource.Resource {
 		bucket.NewBucketResource,
 		bucketencryption.NewBucketEncryptionResource,
 		bucketlifecycle.NewBucketLifecycleResource,
+		bucketlogging.NewBucketLoggingResource,
 		bucketobjectlock.NewBucketObjectLockResource,
 		bucketpolicy.NewBucketPolicyResource,
 		bucketreplication.NewBucketReplicationResource,

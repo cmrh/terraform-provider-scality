@@ -57,7 +57,7 @@ Resources fall into two credential tiers. Match the credential to the resource:
 | Resource | Credential |
 |----------|------------|
 | `scality_account_access_key` | Account |
-| `scality_bucket`, `scality_bucket_policy`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, `scality_bucket_object_lock`, `scality_bucket_replication` | Account |
+| `scality_bucket`, `scality_bucket_policy`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, `scality_bucket_object_lock`, `scality_bucket_replication`, `scality_bucket_logging` | Account |
 | `scality_user`, `scality_user_access_key`, `scality_user_policy` | Account |
 | `scality_group`, `scality_group_membership` | Account |
 | `scality_iam_policy`, `scality_iam_role`, `scality_iam_role_policy_attachment` | Account |
@@ -142,6 +142,7 @@ Notes:
 | [scality_bucket_lifecycle](resources/scality_bucket_lifecycle.md) | Object lifecycle rules |
 | [scality_bucket_object_lock](resources/scality_bucket_object_lock.md) | Object lock retention |
 | [scality_bucket_replication](resources/scality_bucket_replication.md) | Cross-region replication |
+| [scality_bucket_logging](resources/scality_bucket_logging.md) | Server access logging (requires cluster-level enablement) |
 
 ### IAM
 

@@ -2,6 +2,7 @@ package acctest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -52,6 +53,55 @@ func PreCheckConsole(t *testing.T) {
 
 func RandomName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, rand.Intn(99999)) // #nosec G404 -- math/rand suffices for unique acceptance-test resource names
+}
+
+// SkipIfServerAccessLoggingDisabled skips the test when the cluster has server
+// access logging turned off (the API returns 501 NotImplemented). The feature
+// gate fires after auth but before the bucket-existence check, so the probe needs
+// valid account S3 credentials — the platform superadmin key is not an S3
+// credential. It creates a throwaway account, probes a nonexistent bucket with
+// the account key, and cleans up; a disabled cluster yields the sentinel error,
+// an enabled one yields NoSuchBucket (or nil).
+func SkipIfServerAccessLoggingDisabled(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+
+	admin := client.NewIAMClient(
+		os.Getenv("SCALITY_ENDPOINT"),
+		os.Getenv("SCALITY_ACCESS_KEY"),
+		os.Getenv("SCALITY_SECRET_KEY"),
+		true,
+	)
+	if r := os.Getenv("SCALITY_REGION"); r != "" {
+		admin.Region = r
+	}
+
+	name := RandomName("acctest-logprobe")
+	if _, err := admin.CreateAccount(ctx, client.AccountCreateRequest{
+		Name:         name,
+		EmailAddress: name + "@test.local",
+	}); err != nil {
+		t.Fatalf("logging-feature probe: create account: %s", err)
+	}
+	defer func() {
+		if err := admin.DeleteAccount(ctx, name); err != nil {
+			t.Logf("logging-feature probe: cleanup delete account %s: %s", name, err)
+		}
+	}()
+
+	key, err := admin.GenerateAccountAccessKey(ctx, name)
+	if err != nil {
+		t.Fatalf("logging-feature probe: generate access key: %s", err)
+	}
+
+	s3 := client.NewS3Client(os.Getenv("SCALITY_ENDPOINT"), true)
+	if r := os.Getenv("SCALITY_REGION"); r != "" {
+		s3.Region = r
+	}
+	_, err = s3.GetBucketLogging(ctx, key.Data.ID, key.Data.Value, "acctest-logging-probe-nonexistent")
+	if errors.Is(err, client.ErrServerAccessLoggingDisabled) {
+		t.Skip("server access logging is not enabled on this cluster; skipping")
+	}
 }
 
 func ProviderBlock() string {
