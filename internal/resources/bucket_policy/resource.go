@@ -21,7 +21,7 @@ var _ resource.Resource = &BucketPolicyResource{}
 var _ resource.ResourceWithImportState = &BucketPolicyResource{}
 
 type BucketPolicyResource struct {
-	client *client.S3Client
+	clients *client.ProviderClients
 }
 
 func NewBucketPolicyResource() resource.Resource {
@@ -38,13 +38,13 @@ func (r *BucketPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this bucket. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this bucket. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"bucket": schema.StringAttribute{
@@ -86,7 +86,7 @@ func (r *BucketPolicyResource) Configure(ctx context.Context, req resource.Confi
 		return
 	}
 
-	r.client = clients.S3
+	r.clients = clients
 }
 
 func (r *BucketPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -97,16 +97,17 @@ func (r *BucketPolicyResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Creating bucket policy", map[string]interface{}{
 		"bucket": data.Bucket.ValueString(),
 	})
 
-	err := r.client.PutBucketPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-		data.Policy.ValueString(),
-	)
+	err = c.PutBucketPolicy(ctx, ak, sk, data.Bucket.ValueString(), data.Policy.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket policy: %s", err))
 		return
@@ -123,11 +124,13 @@ func (r *BucketPolicyResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	policy, err := r.client.GetBucketPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	policy, err := c.GetBucketPolicy(ctx, ak, sk, data.Bucket.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket policy: %s", err))
 		return
@@ -151,12 +154,13 @@ func (r *BucketPolicyResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	err := r.client.PutBucketPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-		data.Policy.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	err = c.PutBucketPolicy(ctx, ak, sk, data.Bucket.ValueString(), data.Policy.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket policy: %s", err))
 		return
@@ -173,15 +177,17 @@ func (r *BucketPolicyResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Deleting bucket policy", map[string]interface{}{
 		"bucket": data.Bucket.ValueString(),
 	})
 
-	err := r.client.DeleteBucketPolicy(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-	)
+	err = c.DeleteBucketPolicy(ctx, ak, sk, data.Bucket.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -202,6 +208,17 @@ func (r *BucketPolicyResource) ImportState(ctx context.Context, req resource.Imp
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare BUCKET_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: BUCKET_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
 		return
 	}

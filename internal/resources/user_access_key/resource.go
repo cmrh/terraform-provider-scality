@@ -20,7 +20,7 @@ var _ resource.Resource = &UserAccessKeyResource{}
 var _ resource.ResourceWithImportState = &UserAccessKeyResource{}
 
 type UserAccessKeyResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewUserAccessKeyResource() resource.Resource {
@@ -37,16 +37,16 @@ func (r *UserAccessKeyResource) Schema(ctx context.Context, req resource.SchemaR
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this user",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this user. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this user",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this user. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -108,7 +108,7 @@ func (r *UserAccessKeyResource) Configure(ctx context.Context, req resource.Conf
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *UserAccessKeyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -123,11 +123,13 @@ func (r *UserAccessKeyResource) Create(ctx context.Context, req resource.CreateR
 		"username": data.Username.ValueString(),
 	})
 
-	accessKey, err := r.client.CreateUserAccessKey(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	accessKey, err := c.CreateUserAccessKey(ctx, ak, sk, data.Username.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create access key: %s", err))
 		return
@@ -148,11 +150,13 @@ func (r *UserAccessKeyResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	keys, err := r.client.ListUserAccessKeys(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	keys, err := c.ListUserAccessKeys(ctx, ak, sk, data.Username.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list access keys: %s", err))
 		return
@@ -195,12 +199,13 @@ func (r *UserAccessKeyResource) Delete(ctx context.Context, req resource.DeleteR
 		"access_key_id": data.AccessKeyID.ValueString(),
 	})
 
-	err := r.client.DeleteUserAccessKey(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Username.ValueString(),
-		data.AccessKeyID.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	err = c.DeleteUserAccessKey(ctx, ak, sk, data.Username.ValueString(), data.AccessKeyID.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			tflog.Warn(ctx, "Access key already removed, skipping delete", map[string]interface{}{
@@ -230,6 +235,17 @@ func (r *UserAccessKeyResource) ImportState(ctx context.Context, req resource.Im
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key_id"), idParts[1])...)
 		appendUserAccessKeyImportSecretWarning(resp)
 		return
+	}
+
+	// Provider assumed-role credentials: USERNAME:ACCESS_KEY_ID ID, credentials
+	// resolved from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil {
+		if parts := strings.Split(req.ID, ":"); len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), parts[0])...)
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key_id"), parts[1])...)
+			appendUserAccessKeyImportSecretWarning(resp)
+			return
+		}
 	}
 
 	parts := strings.SplitN(req.ID, ":", 4)

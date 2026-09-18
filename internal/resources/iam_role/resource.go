@@ -23,7 +23,7 @@ var _ resource.Resource = &IAMRoleResource{}
 var _ resource.ResourceWithImportState = &IAMRoleResource{}
 
 type IAMRoleResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewIAMRoleResource() resource.Resource {
@@ -40,16 +40,16 @@ func (r *IAMRoleResource) Schema(ctx context.Context, req resource.SchemaRequest
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this role",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this role. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this role",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this role. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -104,7 +104,7 @@ func (r *IAMRoleResource) Configure(ctx context.Context, req resource.ConfigureR
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *IAMRoleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -115,17 +115,17 @@ func (r *IAMRoleResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
 	tflog.Debug(ctx, "Creating IAM role", map[string]any{
 		"role_name": data.RoleName.ValueString(),
 	})
 
-	role, err := r.client.CreateRole(ctx, ak, sk,
-		data.RoleName.ValueString(),
-		data.AssumeRolePolicy.ValueString(),
-	)
+	role, err := c.CreateRole(ctx, ak, sk, data.RoleName.ValueString(), data.AssumeRolePolicy.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create IAM role: %s", err))
 		return
@@ -144,10 +144,13 @@ func (r *IAMRoleResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
-	role, err := r.client.GetRole(ctx, ak, sk, data.RoleName.ValueString())
+	role, err := c.GetRole(ctx, ak, sk, data.RoleName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read IAM role: %s", err))
 		return
@@ -186,14 +189,17 @@ func (r *IAMRoleResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
 	tflog.Debug(ctx, "Deleting IAM role", map[string]any{
 		"role_name": data.RoleName.ValueString(),
 	})
 
-	err := r.client.DeleteRole(ctx, ak, sk, data.RoleName.ValueString())
+	err = c.DeleteRole(ctx, ak, sk, data.RoleName.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -214,6 +220,17 @@ func (r *IAMRoleResource) ImportState(ctx context.Context, req resource.ImportSt
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare ROLE_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: ROLE_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_name"), req.ID)...)
 		return
 	}

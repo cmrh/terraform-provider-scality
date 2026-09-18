@@ -23,6 +23,9 @@ type S3Client struct {
 	Endpoint   string
 	Region     string
 	HTTPClient *http.Client
+	// SessionToken, when set, is sent as X-Amz-Security-Token — set when the
+	// credentials are STS assumed-role credentials.
+	SessionToken string
 }
 
 func NewS3Client(endpoint string, insecureSkipVerify bool) *S3Client {
@@ -79,6 +82,9 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 		"x-amz-content-sha256": payloadHash,
 		"x-amz-date":           amzdate,
 	}
+	if c.SessionToken != "" {
+		headerMap["x-amz-security-token"] = c.SessionToken
+	}
 
 	for k, v := range extraHeaders {
 		headerMap[strings.ToLower(k)] = v
@@ -128,6 +134,9 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 	httpReq.Header.Set("X-Amz-Date", amzdate)
 	httpReq.Header.Set("X-Amz-Content-Sha256", payloadHash)
 	httpReq.Header.Set("Authorization", authHeader)
+	if c.SessionToken != "" {
+		httpReq.Header.Set("X-Amz-Security-Token", c.SessionToken)
+	}
 
 	for k, v := range extraHeaders {
 		httpReq.Header.Set(k, v)

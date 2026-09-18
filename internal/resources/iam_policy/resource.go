@@ -22,7 +22,7 @@ var _ resource.Resource = &IAMPolicyResource{}
 var _ resource.ResourceWithImportState = &IAMPolicyResource{}
 
 type IAMPolicyResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewIAMPolicyResource() resource.Resource {
@@ -39,16 +39,16 @@ func (r *IAMPolicyResource) Schema(ctx context.Context, req resource.SchemaReque
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this policy",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this policy. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this policy",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this policy. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -100,7 +100,7 @@ func (r *IAMPolicyResource) Configure(ctx context.Context, req resource.Configur
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *IAMPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -111,17 +111,17 @@ func (r *IAMPolicyResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 
 	tflog.Debug(ctx, "Creating IAM managed policy", map[string]any{
 		"policy_name": data.PolicyName.ValueString(),
 	})
 
-	policy, err := r.client.CreateManagedPolicy(ctx, ak, sk,
-		data.PolicyName.ValueString(),
-		data.PolicyDocument.ValueString(),
-	)
+	policy, err := c.CreateManagedPolicy(ctx, ak, sk, data.PolicyName.ValueString(), data.PolicyDocument.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create IAM policy: %s", err))
 		return
@@ -140,11 +140,14 @@ func (r *IAMPolicyResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	arn := data.Arn.ValueString()
 
-	policy, err := r.client.GetManagedPolicy(ctx, ak, sk, arn)
+	policy, err := c.GetManagedPolicy(ctx, ak, sk, arn)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read IAM policy: %s", err))
 		return
@@ -158,7 +161,7 @@ func (r *IAMPolicyResource) Read(ctx context.Context, req resource.ReadRequest, 
 	data.PolicyName = types.StringValue(policy.PolicyName)
 
 	if policy.DefaultVersionId != "" {
-		doc, err := r.client.GetManagedPolicyVersion(ctx, ak, sk, arn, policy.DefaultVersionId)
+		doc, err := c.GetManagedPolicyVersion(ctx, ak, sk, arn, policy.DefaultVersionId)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read IAM policy document: %s", err))
 			return
@@ -177,15 +180,18 @@ func (r *IAMPolicyResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	arn := data.Arn.ValueString()
 
 	tflog.Debug(ctx, "Updating IAM managed policy via CreatePolicyVersion", map[string]any{
 		"policy_name": data.PolicyName.ValueString(),
 	})
 
-	err := r.client.CreateManagedPolicyVersion(ctx, ak, sk, arn, data.PolicyDocument.ValueString())
+	err = c.CreateManagedPolicyVersion(ctx, ak, sk, arn, data.PolicyDocument.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update IAM policy: %s", err))
 		return
@@ -202,15 +208,18 @@ func (r *IAMPolicyResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	arn := data.Arn.ValueString()
 
 	tflog.Debug(ctx, "Deleting IAM managed policy", map[string]any{
 		"policy_name": data.PolicyName.ValueString(),
 	})
 
-	err := r.client.DeleteManagedPolicy(ctx, ak, sk, arn)
+	err = c.DeleteManagedPolicy(ctx, ak, sk, arn)
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -231,6 +240,13 @@ func (r *IAMPolicyResource) ImportState(ctx context.Context, req resource.Import
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("arn"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare POLICY_ARN ID (starts with "arn:"),
+	// credentials resolved from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && strings.HasPrefix(req.ID, "arn:") {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("arn"), req.ID)...)
 		return
 	}

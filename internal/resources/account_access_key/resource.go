@@ -20,7 +20,7 @@ var _ resource.Resource = &AccountAccessKeyResource{}
 var _ resource.ResourceWithImportState = &AccountAccessKeyResource{}
 
 type AccountAccessKeyResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewAccountAccessKeyResource() resource.Resource {
@@ -45,16 +45,16 @@ func (r *AccountAccessKeyResource) Schema(ctx context.Context, req resource.Sche
 				},
 			},
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account to create the key for",
-				Required:            true,
+				MarkdownDescription: "Access key of the account to create the key for. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account to create the key for",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account to create the key for. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -116,7 +116,7 @@ func (r *AccountAccessKeyResource) Configure(ctx context.Context, req resource.C
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *AccountAccessKeyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -127,12 +127,15 @@ func (r *AccountAccessKeyResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Generating root access key for account")
 
-	accessKey, err := r.client.CreateRootAccessKey(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-	)
+	accessKey, err := c.CreateRootAccessKey(ctx, ak, sk)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to generate access key: %s", err))
 		return
@@ -157,10 +160,13 @@ func (r *AccountAccessKeyResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	keys, err := r.client.ListRootAccessKeys(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	keys, err := c.ListRootAccessKeys(ctx, ak, sk)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list access keys: %s", err))
 		return
@@ -201,15 +207,17 @@ func (r *AccountAccessKeyResource) Delete(ctx context.Context, req resource.Dele
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Deleting access key", map[string]interface{}{
 		"access_key_id": data.ID.ValueString(),
 	})
 
-	err := r.client.DeleteRootAccessKey(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.ID.ValueString(),
-	)
+	err = c.DeleteRootAccessKey(ctx, ak, sk, data.ID.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			tflog.Warn(ctx, "Access key already removed, skipping delete", map[string]interface{}{
@@ -235,6 +243,19 @@ func (r *AccountAccessKeyResource) ImportState(ctx context.Context, req resource
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key"), req.ID)...)
+		appendAccountAccessKeyImportSecretWarning(resp)
+		return
+	}
+
+	// Provider assumed-role credentials: bare ACCESS_KEY_ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: ACCESS_KEY_ID")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("access_key"), req.ID)...)
 		appendAccountAccessKeyImportSecretWarning(resp)

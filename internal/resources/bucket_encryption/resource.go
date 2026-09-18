@@ -21,7 +21,7 @@ var _ resource.Resource = &BucketEncryptionResource{}
 var _ resource.ResourceWithImportState = &BucketEncryptionResource{}
 
 type BucketEncryptionResource struct {
-	client *client.S3Client
+	clients *client.ProviderClients
 }
 
 func NewBucketEncryptionResource() resource.Resource {
@@ -38,13 +38,13 @@ func (r *BucketEncryptionResource) Schema(ctx context.Context, req resource.Sche
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this bucket. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this bucket",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this bucket. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"bucket": schema.StringAttribute{
@@ -90,7 +90,7 @@ func (r *BucketEncryptionResource) Configure(ctx context.Context, req resource.C
 		return
 	}
 
-	r.client = clients.S3
+	r.clients = clients
 }
 
 func (r *BucketEncryptionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -101,15 +101,18 @@ func (r *BucketEncryptionResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
 	tflog.Debug(ctx, "Setting bucket encryption", map[string]interface{}{
 		"bucket": bucket,
 	})
 
-	err := r.client.PutBucketEncryption(ctx, ak, sk, bucket, client.EncryptionConfig{
+	err = c.PutBucketEncryption(ctx, ak, sk, bucket, client.EncryptionConfig{
 		SSEAlgorithm:   data.SSEAlgorithm.ValueString(),
 		KMSMasterKeyID: data.KMSMasterKeyID.ValueString(),
 	})
@@ -129,11 +132,14 @@ func (r *BucketEncryptionResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
-	config, err := r.client.GetBucketEncryption(ctx, ak, sk, bucket)
+	config, err := c.GetBucketEncryption(ctx, ak, sk, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket encryption: %s", err))
 		return
@@ -162,11 +168,14 @@ func (r *BucketEncryptionResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	ak := data.AccountAccessKey.ValueString()
-	sk := data.AccountSecretKey.ValueString()
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
 	bucket := data.Bucket.ValueString()
 
-	err := r.client.PutBucketEncryption(ctx, ak, sk, bucket, client.EncryptionConfig{
+	err = c.PutBucketEncryption(ctx, ak, sk, bucket, client.EncryptionConfig{
 		SSEAlgorithm:   data.SSEAlgorithm.ValueString(),
 		KMSMasterKeyID: data.KMSMasterKeyID.ValueString(),
 	})
@@ -186,15 +195,17 @@ func (r *BucketEncryptionResource) Delete(ctx context.Context, req resource.Dele
 		return
 	}
 
+	c, ak, sk, err := r.clients.ResolveS3(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
 	tflog.Debug(ctx, "Deleting bucket encryption", map[string]interface{}{
 		"bucket": data.Bucket.ValueString(),
 	})
 
-	err := r.client.DeleteBucketEncryption(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.Bucket.ValueString(),
-	)
+	err = c.DeleteBucketEncryption(ctx, ak, sk, data.Bucket.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -215,6 +226,17 @@ func (r *BucketEncryptionResource) ImportState(ctx context.Context, req resource
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare BUCKET_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: BUCKET_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("bucket"), req.ID)...)
 		return
 	}

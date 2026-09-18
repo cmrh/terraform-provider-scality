@@ -21,7 +21,7 @@ var _ resource.Resource = &GroupResource{}
 var _ resource.ResourceWithImportState = &GroupResource{}
 
 type GroupResource struct {
-	client *client.IAMClient
+	clients *client.ProviderClients
 }
 
 func NewGroupResource() resource.Resource {
@@ -38,16 +38,16 @@ func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 
 		Attributes: map[string]schema.Attribute{
 			"account_access_key": schema.StringAttribute{
-				MarkdownDescription: "Access key of the account that owns this group",
-				Required:            true,
+				MarkdownDescription: "Access key of the account that owns this group. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"account_secret_key": schema.StringAttribute{
-				MarkdownDescription: "Secret key of the account that owns this group",
-				Required:            true,
+				MarkdownDescription: "Secret key of the account that owns this group. Omit to use the provider's assumed-role credentials.",
+				Optional:            true,
 				Sensitive:           true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -108,7 +108,7 @@ func (r *GroupResource) Configure(ctx context.Context, req resource.ConfigureReq
 		return
 	}
 
-	r.client = clients.IAM
+	r.clients = clients
 }
 
 func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -123,11 +123,13 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		"group_name": data.GroupName.ValueString(),
 	})
 
-	grp, err := r.client.CreateGroup(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.GroupName.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	grp, err := c.CreateGroup(ctx, ak, sk, data.GroupName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create group: %s", err))
 		return
@@ -148,11 +150,13 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	grp, _, err := r.client.GetGroup(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.GroupName.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	grp, _, err := c.GetGroup(ctx, ak, sk, data.GroupName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read group: %s", err))
 		return
@@ -189,11 +193,13 @@ func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		"group_name": data.GroupName.ValueString(),
 	})
 
-	err := r.client.DeleteGroup(ctx,
-		data.AccountAccessKey.ValueString(),
-		data.AccountSecretKey.ValueString(),
-		data.GroupName.ValueString(),
-	)
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+
+	err = c.DeleteGroup(ctx, ak, sk, data.GroupName.ValueString())
 	if err != nil {
 		if strings.Contains(err.Error(), "InvalidAccessKeyId") || strings.Contains(err.Error(), "NoSuchEntity") {
 			return
@@ -214,6 +220,17 @@ func (r *GroupResource) ImportState(ctx context.Context, req resource.ImportStat
 		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_access_key"), ak)...)
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("account_secret_key"), sk)...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("group_name"), req.ID)...)
+		return
+	}
+
+	// Provider assumed-role credentials: bare GROUP_NAME ID, credentials resolved
+	// from the provider at read time (left null in state).
+	if r.clients != nil && r.clients.Assumed != nil && !strings.Contains(req.ID, ":") {
+		if req.ID == "" {
+			resp.Diagnostics.AddError("Invalid Import ID", "Import ID must be: GROUP_NAME")
+			return
+		}
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("group_name"), req.ID)...)
 		return
 	}

@@ -356,8 +356,8 @@ resource "scality_bucket_replication" "dest_to_source" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | Yes | Access key of the owning account. Sensitive. |
-| `account_secret_key` | String | Yes | Secret key of the owning account. Sensitive. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `bucket` | String | Yes | Source bucket name. Changing this replaces the resource. |
 | `role` | String | Yes | Comma-separated pair of IAM role ARNs: `source_role_arn,dest_role_arn`. S3 assumes these roles to replicate objects. |
 | `rule` | Block (list) | Yes | One or more replication rules. See below. |
