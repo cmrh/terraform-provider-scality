@@ -15,13 +15,32 @@ terraform {
 }
 
 provider "scality" {
-  endpoint   = "https://vault.example.com"     # Vault/IAM admin endpoint
+  endpoint   = "https://scality.example.com"   # serves the STS, IAM, S3, and superadmin APIs
   access_key = var.scality_access_key
   secret_key = var.scality_secret_key
 }
 ```
 
 See [`docs/index.md`](docs/index.md) for the full provider configuration reference, including Console-API auth and the `insecure_skip_verify` option.
+
+### Cross-account management (`assume_role`)
+
+A management account can manage resources in other accounts without holding each account's long-lived keys. Add an `assume_role` block naming a role in the target account, and per-account resources fall back to the assumed credentials when they omit their own:
+
+```hcl
+provider "scality" {
+  alias      = "customer_a"
+  endpoint   = "https://scality.example.com"
+  access_key = var.mgmt_user_ak   # an IAM user with sts:AssumeRole
+  secret_key = var.mgmt_user_sk
+
+  assume_role {
+    role_arn = "arn:aws:iam::111111111111:role/account-manager"
+  }
+}
+```
+
+See [Delegated Cross-Account Management](docs/index.md#delegated-cross-account-management-assume_role) for the full setup, including trust-policy requirements.
 
 ## Resources
 
@@ -43,6 +62,7 @@ See [`docs/index.md`](docs/index.md) for the full provider configuration referen
 | [scality_bucket_lifecycle](docs/resources/scality_bucket_lifecycle.md) | Object lifecycle rules |
 | [scality_bucket_object_lock](docs/resources/scality_bucket_object_lock.md) | Object lock retention |
 | [scality_bucket_replication](docs/resources/scality_bucket_replication.md) | Cross-bucket replication |
+| [scality_bucket_logging](docs/resources/scality_bucket_logging.md) | Server access logging (requires cluster-level enablement) |
 
 ### IAM
 
