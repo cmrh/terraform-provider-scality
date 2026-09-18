@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -120,7 +121,7 @@ func (d *AccountDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		"name": name,
 	})
 
-	account, err := d.client.GetAccount(ctx, name)
+	account, err := d.getAccountWithAttributes(ctx, name)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read account %q: %s", name, err))
 		return
@@ -152,4 +153,43 @@ func (d *AccountDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// accountReadAttempts and accountReadBackoff bound the read-your-writes retry
+// below.
+const (
+	accountReadAttempts = 4
+	accountReadBackoff  = time.Second
+)
+
+// getAccountWithAttributes fetches the account, retrying briefly when it is
+// found but carries no custom attributes. The Vault IAM API serves reads from
+// load-balanced replicas with non-uniform write propagation, so a lookup issued
+// right after `scality_account` sets attributes (a common same-apply pattern)
+// can land on a replica that has the account but not the recent
+// UpdateAccountAttributes yet, and return them empty. Retrying lets a lagging
+// replica catch up. An account that genuinely has no attributes exhausts the
+// (small, bounded) budget and returns empty — correct, just slightly slower.
+func (d *AccountDataSource) getAccountWithAttributes(ctx context.Context, name string) (*client.AccountGetResponse, error) {
+	var account *client.AccountGetResponse
+	for attempt := 1; ; attempt++ {
+		var err error
+		account, err = d.client.GetAccount(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		// Not found, attributes already present, or budget exhausted: done.
+		if account == nil || len(account.CustomAttributes) > 0 || attempt >= accountReadAttempts {
+			return account, nil
+		}
+		tflog.Debug(ctx, "Account has no custom attributes; retrying for replica propagation", map[string]any{
+			"name":    name,
+			"attempt": attempt,
+		})
+		select {
+		case <-ctx.Done():
+			return account, nil
+		case <-time.After(accountReadBackoff):
+		}
+	}
 }
