@@ -41,6 +41,31 @@ provider "scality" {
 
 You only need to configure the APIs you use. An IAM endpoint alone is sufficient for per-account resources (buckets, users, groups). The same endpoint serves the STS, IAM, S3, and superadmin APIs; the load balancer routes each request to the right backend.
 
+## Credential Tiers
+
+Resources fall into two credential tiers. Match the credential to the resource:
+
+**Platform (superadmin) tier** — manages accounts themselves, using the provider's `access_key`/`secret_key` (or Console credentials).
+
+| Resource | Credential |
+|----------|------------|
+| `scality_account` | Platform admin (IAM superadmin) |
+| `scality_console_account` | Console admin |
+
+**Account tier** — manages resources *inside* an account. Each resource takes its own `account_access_key`/`account_secret_key`, or falls back to the provider's `assume_role` credentials (see below). These never use the platform superadmin.
+
+| Resource | Credential |
+|----------|------------|
+| `scality_account_access_key` | Account |
+| `scality_bucket`, `scality_bucket_policy`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, `scality_bucket_object_lock`, `scality_bucket_replication` | Account |
+| `scality_user`, `scality_user_access_key`, `scality_user_policy` | Account |
+| `scality_group`, `scality_group_membership` | Account |
+| `scality_iam_policy`, `scality_iam_role`, `scality_iam_role_policy_attachment` | Account |
+
+Data sources follow the same tier as their matching resource.
+
+`assume_role` serves the **account tier** only. STS is an account-level operation, so the platform-tier resources above cannot use it and are unaffected by it.
+
 ## Delegated Cross-Account Management (`assume_role`)
 
 A management account can manage resources in other accounts without holding each
@@ -52,19 +77,20 @@ credentials whenever they omit their own `account_access_key` /
 `account_secret_key`.
 
 ```hcl
-# Management account's identity (an account, not the platform superadmin).
+# Base identity: an IAM user in the management account (not the account root,
+# not the platform superadmin) that has sts:AssumeRole permission.
 provider "scality" {
   endpoint   = "http://scality.example.com:8080"
-  access_key = var.mgmt_ak
-  secret_key = var.mgmt_sk
+  access_key = var.mgmt_user_ak
+  secret_key = var.mgmt_user_sk
 }
 
 # One aliased provider per customer account, each assuming that account's role.
 provider "scality" {
   alias      = "customer_a"
   endpoint   = "http://scality.example.com:8080"
-  access_key = var.mgmt_ak
-  secret_key = var.mgmt_sk
+  access_key = var.mgmt_user_ak
+  secret_key = var.mgmt_user_sk
 
   assume_role {
     role_arn = "arn:aws:iam::111111111111:role/account-manager"
@@ -80,9 +106,12 @@ resource "scality_bucket" "data" {
 
 Notes:
 
-- The base credentials must be an **account identity**, not the platform
-  superadmin. STS assume-role is an account-level operation; the superadmin
-  account-management APIs do not support it.
+- The base credentials must be an **IAM user** in the management account with
+  `sts:AssumeRole` permission — not the account root, and not the platform
+  superadmin. STS assume-role is an account-level operation: the account root
+  cannot assume a role (`AccessDenied: Roles may not be assumed by root
+  accounts`), and the superadmin account-management APIs do not support STS at
+  all.
 - The target role's trust policy must allow the management account as a
   principal. See [`scality_iam_role`](resources/scality_iam_role.md) for the
   principal forms Vault accepts.

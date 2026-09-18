@@ -92,6 +92,10 @@ accepts these principal forms:
 The "Account principal" example above is what a **management account** needs to
 manage this account via the provider
 [`assume_role`](../index.md#delegated-cross-account-management-assume_role) block.
+The `arn:aws:iam::<id>:root` principal delegates to that account: assume the role
+as an IAM user in it that holds `sts:AssumeRole` permission. The account root
+itself cannot assume a role (`AccessDenied: Roles may not be assumed by root
+accounts`).
 
 Always use the account **root** ARN (`arn:aws:iam::<id>:root`), a user ARN, or the
 bare account ID as the cross-account principal. The path-style ARN exposed as
