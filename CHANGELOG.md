@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-12
+
 ### Fixed
 - `scality_account` data source now retries briefly when an account is found but its custom attributes have not yet propagated across the Vault IAM API's load-balanced read replicas. A same-apply lookup of an account whose attributes were just set could previously return them empty. The genuinely-empty case is unchanged. (#58)
 
