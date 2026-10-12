@@ -1,6 +1,6 @@
 module github.com/cmrh/terraform-provider-scality
 
-go 1.26.0
+go 1.26.9
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.19.0
