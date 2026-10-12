@@ -7,6 +7,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ### Fixed
 - `scality_account` data source now retries briefly when an account is found but its custom attributes have not yet propagated across the Vault IAM API's load-balanced read replicas. A same-apply lookup of an account whose attributes were just set could previously return them empty. The genuinely-empty case is unchanged. (#58)
 
+### Security
+- Bumped `golang.org/x/net` v0.58.0 → v0.60.0, clearing five reachable advisories in its HTTP/2 stack: GO-2026-6617, GO-2026-6612, GO-2026-6611, GO-2026-6610, GO-2026-6603. The upgrade raises the `go` directive to 1.26.0 (required by x/net v0.60.0); CI reads the version from `go.mod`, so no workflow changes are needed.
+
 ## [1.1.0] - 2026-09-18
 
 ### Added
