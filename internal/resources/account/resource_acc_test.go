@@ -5,9 +5,48 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
+
+// TestAccAccount_quotaUpdateInPlace verifies that changing quota_max updates the
+// account in place (ResourceActionUpdate) rather than destroying+recreating it.
+func TestAccAccount_quotaUpdateInPlace(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resourceName := "scality_account.test"
+
+	cfg := func(quota int64) string {
+		return acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_account" "test" {
+  name          = %[1]q
+  email_address = "%[1]s@test.local"
+  quota_max     = %[2]d
+}
+`, name, quota)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_account"),
+		Steps: []resource.TestStep{
+			{
+				Config: cfg(1000000000),
+				Check:  resource.TestCheckResourceAttr(resourceName, "quota_max", "1000000000"),
+			},
+			{
+				Config: cfg(5000000000),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.TestCheckResourceAttr(resourceName, "quota_max", "5000000000"),
+			},
+		},
+	})
+}
 
 func TestAccAccount_basic(t *testing.T) {
 	name := acctest.RandomName("acctest")

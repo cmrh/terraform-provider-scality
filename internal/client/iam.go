@@ -530,6 +530,25 @@ func (c *IAMClient) UpdateAccountAttributes(ctx context.Context, accountName str
 	return nil
 }
 
+// UpdateAccountQuota changes an existing account's storage quota in bytes
+// (0 = unlimited) via the Vault UpdateAccountQuota admin route.
+func (c *IAMClient) UpdateAccountQuota(ctx context.Context, accountName string, quotaMax int64) error {
+	params := url.Values{}
+	params.Set("AccountName", accountName)
+	params.Set("quotaMax", fmt.Sprintf("%d", quotaMax))
+
+	body, statusCode, err := c.DoSignedRequest(ctx, "UpdateAccountQuota", params)
+	if err != nil {
+		return err
+	}
+
+	if statusCode != 200 && statusCode != 201 {
+		return fmt.Errorf("unexpected status %d: %s", statusCode, string(body))
+	}
+
+	return nil
+}
+
 // --- IAM XML Response Types ---
 
 type createUserResponse struct {
