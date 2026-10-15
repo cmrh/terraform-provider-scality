@@ -146,26 +146,28 @@ func TestGetManagedPolicyVersion(t *testing.T) {
 }
 
 func TestCreateManagedPolicyVersion(t *testing.T) {
+	// Under the cap (2 versions): lists, then creates — no prune.
+	var actions []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("failed to parse form: %v", err)
 		}
+		action := r.FormValue("Action")
+		actions = append(actions, action)
 
-		if got := r.FormValue("Action"); got != "CreatePolicyVersion" {
-			t.Errorf("Action = %q, want CreatePolicyVersion", got)
+		switch action {
+		case "ListPolicyVersions":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<ListPolicyVersionsResponse><ListPolicyVersionsResult><Versions><member><VersionId>v2</VersionId><IsDefaultVersion>true</IsDefaultVersion></member><member><VersionId>v1</VersionId><IsDefaultVersion>false</IsDefaultVersion></member></Versions></ListPolicyVersionsResult></ListPolicyVersionsResponse>`))
+		case "CreatePolicyVersion":
+			if got := r.FormValue("SetAsDefault"); got != "true" {
+				t.Errorf("SetAsDefault = %q, want true", got)
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<CreatePolicyVersionResponse><CreatePolicyVersionResult><PolicyVersion><VersionId>v3</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></CreatePolicyVersionResult></CreatePolicyVersionResponse>`))
+		default:
+			t.Errorf("unexpected Action = %q", action)
 		}
-		if got := r.FormValue("PolicyArn"); got != "arn:aws:iam::123:policy/test-policy" {
-			t.Errorf("PolicyArn = %q, want arn:aws:iam::123:policy/test-policy", got)
-		}
-		if got := r.FormValue("PolicyDocument"); got != `{"Version":"2012-10-17","Statement":[]}` {
-			t.Errorf("PolicyDocument = %q, unexpected value", got)
-		}
-		if got := r.FormValue("SetAsDefault"); got != "true" {
-			t.Errorf("SetAsDefault = %q, want true", got)
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`<CreatePolicyVersionResponse><CreatePolicyVersionResult><PolicyVersion><Document>%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%5D%7D</Document><VersionId>v2</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></CreatePolicyVersionResult></CreatePolicyVersionResponse>`))
 	}))
 	defer server.Close()
 
@@ -173,6 +175,77 @@ func TestCreateManagedPolicyVersion(t *testing.T) {
 	err := client.CreateManagedPolicyVersion(context.Background(), "ak", "sk", "arn:aws:iam::123:policy/test-policy", `{"Version":"2012-10-17","Statement":[]}`)
 	if err != nil {
 		t.Fatalf("CreateManagedPolicyVersion returned error: %v", err)
+	}
+	if len(actions) != 2 || actions[0] != "ListPolicyVersions" || actions[1] != "CreatePolicyVersion" {
+		t.Errorf("expected [ListPolicyVersions, CreatePolicyVersion], got %v", actions)
+	}
+}
+
+// TestCreateManagedPolicyVersion_PrunesWhenAtCap: at the 5-version cap, the
+// oldest non-default version is deleted before the new version is created.
+func TestCreateManagedPolicyVersion_PrunesWhenAtCap(t *testing.T) {
+	var actions []string
+	var deletedVersion string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form: %v", err)
+		}
+		action := r.FormValue("Action")
+		actions = append(actions, action)
+
+		switch action {
+		case "ListPolicyVersions":
+			// v5 default; v1..v4 non-default (returned newest-first).
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<ListPolicyVersionsResponse><ListPolicyVersionsResult><Versions>` +
+				`<member><VersionId>v5</VersionId><IsDefaultVersion>true</IsDefaultVersion></member>` +
+				`<member><VersionId>v4</VersionId><IsDefaultVersion>false</IsDefaultVersion></member>` +
+				`<member><VersionId>v3</VersionId><IsDefaultVersion>false</IsDefaultVersion></member>` +
+				`<member><VersionId>v2</VersionId><IsDefaultVersion>false</IsDefaultVersion></member>` +
+				`<member><VersionId>v1</VersionId><IsDefaultVersion>false</IsDefaultVersion></member>` +
+				`</Versions></ListPolicyVersionsResult></ListPolicyVersionsResponse>`))
+		case "DeletePolicyVersion":
+			deletedVersion = r.FormValue("VersionId")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<DeletePolicyVersionResponse></DeletePolicyVersionResponse>`))
+		case "CreatePolicyVersion":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<CreatePolicyVersionResponse><CreatePolicyVersionResult><PolicyVersion><VersionId>v6</VersionId><IsDefaultVersion>true</IsDefaultVersion></PolicyVersion></CreatePolicyVersionResult></CreatePolicyVersionResponse>`))
+		default:
+			t.Errorf("unexpected Action = %q", action)
+		}
+	}))
+	defer server.Close()
+
+	client := NewIAMClient(server.URL, "admin-ak", "admin-sk", false)
+	if err := client.CreateManagedPolicyVersion(context.Background(), "ak", "sk", "arn:aws:iam::123:policy/test-policy", `{}`); err != nil {
+		t.Fatalf("CreateManagedPolicyVersion returned error: %v", err)
+	}
+	if deletedVersion != "v1" {
+		t.Errorf("pruned version = %q, want v1 (oldest non-default)", deletedVersion)
+	}
+	if len(actions) != 3 || actions[0] != "ListPolicyVersions" || actions[1] != "DeletePolicyVersion" || actions[2] != "CreatePolicyVersion" {
+		t.Errorf("expected [ListPolicyVersions, DeletePolicyVersion, CreatePolicyVersion], got %v", actions)
+	}
+}
+
+func TestOldestNonDefaultVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		versions []policyVersion
+		want     string
+	}{
+		{"empty", nil, ""},
+		{"only default", []policyVersion{{"v1", true}}, ""},
+		{"picks lowest non-default", []policyVersion{{"v5", true}, {"v4", false}, {"v2", false}, {"v3", false}}, "v2"},
+		{"unordered input", []policyVersion{{"v3", false}, {"v10", false}, {"v2", true}}, "v3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := oldestNonDefaultVersion(tt.versions); got != tt.want {
+				t.Errorf("oldestNonDefaultVersion = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
