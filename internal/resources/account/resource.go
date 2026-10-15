@@ -62,12 +62,11 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 				},
 			},
 			"quota_max": schema.Int64Attribute{
-				MarkdownDescription: "Maximum amount of bytes storable by the account (0 = unlimited)",
+				MarkdownDescription: "Maximum amount of bytes storable by the account (0 = unlimited). Changed in place; does not replace the account.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
-					int64planmodifier.RequiresReplace(),
 				},
 			},
 			"external_account_id": schema.StringAttribute{
@@ -306,6 +305,14 @@ func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	state.CustomAttributes = plan.CustomAttributes
+
+	if !plan.QuotaMax.Equal(state.QuotaMax) {
+		if err := r.client.UpdateAccountQuota(ctx, state.Name.ValueString(), plan.QuotaMax.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update account quota: %s", err))
+			return
+		}
+		state.QuotaMax = plan.QuotaMax
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
