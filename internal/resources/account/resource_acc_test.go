@@ -12,6 +12,28 @@ import (
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
 
+// TestAccAccount_emailCasePreserved verifies a mixed-case email does not force a
+// perpetual replace: the server lowercases it, but state keeps the configured
+// casing, so the post-apply plan is empty.
+func TestAccAccount_emailCasePreserved(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	email := fmt.Sprintf("Mixed.Case.%s@Example.com", name)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_account"),
+		Steps: []resource.TestStep{{
+			Config: acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_account" "test" {
+  name          = %[1]q
+  email_address = %[2]q
+}
+`, name, email),
+			Check: resource.TestCheckResourceAttr("scality_account.test", "email_address", email),
+		}},
+	})
+}
+
 func TestAccAccount_tooManyCustomAttributes(t *testing.T) {
 	name := acctest.RandomName("acctest")
 	var b strings.Builder

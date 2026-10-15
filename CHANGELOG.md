@@ -9,6 +9,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - `scality_iam_policy` no longer fails with `LimitExceeded` after repeated `policy_document` edits. IAM managed policies cap at 5 versions; Update now prunes the oldest non-default version before creating the new one, so a policy can be edited indefinitely. (#67)
 - `scality_account` now changes `quota_max` in place via the Vault `UpdateAccountQuota` API instead of forcing a destructive replacement. Previously a quota change destroyed and recreated the account — a new ARN and root credentials, or a `409` on a non-empty account. `scality_console_account` quota remains replace-only (Console API path). (#68)
 - `scality_bucket_replication` no longer fails with "inconsistent result after apply" when adding a rule to an existing configuration. Update now reads the config back after applying (mirroring Create), and an omitted rule `id` is planned as unknown so the server-assigned value is accepted, including on newly added rules. (#69)
+- `scality_account` no longer plans a perpetual replacement when `email_address` contains uppercase letters. The server lowercases the email; Read now keeps the configured casing when it differs only by case. (#71)
 
 ### Added
 - `scality_bucket` now rejects `object_lock_enabled = true` combined with `versioning = false` at plan time. Object Lock requires versioning, so the combination is contradictory and previously drifted or failed mid-apply; the error now names the fix (set `versioning = true` or omit it). (#64)
