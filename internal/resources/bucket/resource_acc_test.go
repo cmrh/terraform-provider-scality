@@ -56,6 +56,40 @@ resource "scality_bucket" "test" {
 `, name, versioning)
 }
 
+func testAccBucketNoVersioningConfig(name string) string {
+	return testAccBucketBase(name) + fmt.Sprintf(`
+resource "scality_bucket" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = "%[1]s-bucket"
+  depends_on         = [scality_user_policy.test]
+}
+`, name)
+}
+
+// TestAccBucket_versioningUnsetLeavesAsIs verifies that removing the versioning
+// attribute means "stop managing" — an Enabled bucket is left Enabled, not
+// suspended (which would also 409 on an Object Lock bucket).
+func TestAccBucket_versioningUnsetLeavesAsIs(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket"),
+		Steps: []resource.TestStep{
+			{ // manage versioning = true -> Enabled
+				Config: testAccBucketVersioningConfig(name, true),
+				Check:  checkBucketVersioningAPI("Enabled"),
+			},
+			{ // drop the attribute -> unmanaged; bucket must stay Enabled
+				Config: testAccBucketNoVersioningConfig(name),
+				Check:  checkBucketVersioningAPI("Enabled"),
+			},
+		},
+	})
+}
+
 // TestAccBucket_objectLockVersioningConflict verifies the plan-time guard:
 // object_lock_enabled = true with versioning = false is rejected before apply.
 func TestAccBucket_objectLockVersioningConflict(t *testing.T) {
