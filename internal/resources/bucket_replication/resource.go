@@ -64,7 +64,7 @@ func (r *BucketReplicationResource) Schema(ctx context.Context, req resource.Sch
 							Optional: true,
 							Computed: true,
 							PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseStateForUnknown(),
+								ruleIDUnknownIfOmitted{},
 							},
 						},
 						"status": schema.StringAttribute{
@@ -110,6 +110,31 @@ func (r *BucketReplicationResource) Configure(ctx context.Context, req resource.
 	}
 
 	r.clients = clients
+}
+
+// ruleIDUnknownIfOmitted lets the server assign a rule id when the user omits
+// one. It reuses a known prior id across updates, and marks a newly added rule's
+// omitted id Unknown — UseStateForUnknown alone leaves it null for new list
+// elements, which breaks the post-apply read-back.
+type ruleIDUnknownIfOmitted struct{}
+
+func (ruleIDUnknownIfOmitted) Description(context.Context) string {
+	return "server assigns a rule id when omitted"
+}
+
+func (m ruleIDUnknownIfOmitted) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (ruleIDUnknownIfOmitted) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	switch {
+	case !req.ConfigValue.IsNull():
+		// User set an explicit id — keep it.
+	case !req.StateValue.IsNull():
+		resp.PlanValue = req.StateValue // reuse the already-assigned id
+	default:
+		resp.PlanValue = types.StringUnknown() // new rule: let the server assign
+	}
 }
 
 func modelRulesToClient(rules []ReplicationRuleModel) []client.ReplicationRule {
@@ -241,6 +266,13 @@ func (r *BucketReplicationResource) Update(ctx context.Context, req resource.Upd
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket replication: %s", err))
 		return
 	}
+
+	_, rules, err := c.GetBucketReplication(ctx, ak, sk, bucket)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read back bucket replication after update: %s", err))
+		return
+	}
+	data.Rules = clientRulesToModel(rules)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
