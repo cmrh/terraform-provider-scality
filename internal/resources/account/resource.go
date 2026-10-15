@@ -20,6 +20,25 @@ import (
 
 var _ resource.Resource = &AccountResource{}
 var _ resource.ResourceWithImportState = &AccountResource{}
+var _ resource.ResourceWithValidateConfig = &AccountResource{}
+
+func (r *AccountResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data AccountResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !data.CustomAttributes.IsNull() && !data.CustomAttributes.IsUnknown() {
+		if n := len(data.CustomAttributes.Elements()); n > 10 {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("custom_attributes"),
+				"Too many custom attributes",
+				fmt.Sprintf("An account supports at most 10 custom attributes; %d configured.", n),
+			)
+		}
+	}
+}
 
 type AccountResource struct {
 	client *client.IAMClient

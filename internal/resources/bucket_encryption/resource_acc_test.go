@@ -2,12 +2,25 @@ package bucketencryption_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
+
+func TestAccBucketEncryption_kmsKeyRequiresKMS(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config:      testAccBucketEncryptionConfig(name, "AES256", "some-key"),
+			ExpectError: regexp.MustCompile(`requires aws:kms`),
+		}},
+	})
+}
 
 func testAccBucketEncryptionBase(name string) string {
 	return acctest.ProviderBlock() + fmt.Sprintf(`

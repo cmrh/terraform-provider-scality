@@ -2,12 +2,38 @@ package bucketlifecycle_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
+
+func TestAccBucketLifecycle_ruleNeedsAction(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: testAccBucketLifecycleBase(name) + `
+resource "scality_bucket_lifecycle" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+
+  rule {
+    id     = "noop"
+    status = "Enabled"
+  }
+
+  depends_on = [scality_user_policy.test]
+}
+`,
+			ExpectError: regexp.MustCompile(`at least one action`),
+		}},
+	})
+}
 
 func testAccBucketLifecycleBase(name string) string {
 	return acctest.ProviderBlock() + fmt.Sprintf(`

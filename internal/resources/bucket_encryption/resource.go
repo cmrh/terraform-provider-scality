@@ -19,6 +19,24 @@ import (
 
 var _ resource.Resource = &BucketEncryptionResource{}
 var _ resource.ResourceWithImportState = &BucketEncryptionResource{}
+var _ resource.ResourceWithValidateConfig = &BucketEncryptionResource{}
+
+func (r *BucketEncryptionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data BucketEncryptionResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	hasKey := !data.KMSMasterKeyID.IsNull() && !data.KMSMasterKeyID.IsUnknown() && data.KMSMasterKeyID.ValueString() != ""
+	if hasKey && !data.SSEAlgorithm.IsUnknown() && data.SSEAlgorithm.ValueString() != "aws:kms" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("kms_master_key_id"),
+			"kms_master_key_id requires aws:kms",
+			`kms_master_key_id can only be set when sse_algorithm = "aws:kms".`,
+		)
+	}
+}
 
 type BucketEncryptionResource struct {
 	clients *client.ProviderClients

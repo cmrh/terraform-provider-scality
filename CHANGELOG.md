@@ -12,6 +12,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Added
 - `scality_bucket` now rejects `object_lock_enabled = true` combined with `versioning = false` at plan time. Object Lock requires versioning, so the combination is contradictory and previously drifted or failed mid-apply; the error now names the fix (set `versioning = true` or omit it). (#64)
+- Plan-time validation for co-dependent attributes, catching at plan what previously failed at apply or drifted: `scality_bucket_encryption` requires `sse_algorithm = "aws:kms"` when `kms_master_key_id` is set; `scality_bucket_object_lock` requires exactly one of `retention_days`/`retention_years`; `scality_account` rejects more than 10 `custom_attributes`; `scality_bucket_lifecycle` requires each rule to set at least one action and rejects both `expiration_days` and `expiration_date`. (#70)
 
 ## [1.1.1] - 2026-10-12
 
