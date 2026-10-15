@@ -9,7 +9,7 @@ import (
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
 
-func testAccCRRConfig(name string) string {
+func testAccCRRConfig(name, rules string) string {
 	return acctest.ProviderBlock() + fmt.Sprintf(`
 resource "scality_account" "source" {
   name          = "%[1]s-src"
@@ -202,19 +202,56 @@ resource "scality_bucket_replication" "test" {
   account_secret_key = scality_account_access_key.source.secret_key
   bucket             = scality_bucket.source.bucket
   role               = "${scality_iam_role.source.arn},${scality_iam_role.dest.arn}"
-
-  rule {
-    status             = "Enabled"
-    prefix             = ""
-    destination_bucket = "arn:aws:s3:::${scality_bucket.dest.bucket}"
-  }
-
+%[2]s
   depends_on = [
     scality_iam_role_policy_attachment.source,
     scality_iam_role_policy_attachment.dest,
   ]
 }
-`, name)
+`, name, rules)
+}
+
+const crrRuleEmpty = `
+  rule {
+    status             = "Enabled"
+    prefix             = ""
+    destination_bucket = "arn:aws:s3:::${scality_bucket.dest.bucket}"
+  }`
+
+const crrRuleData = `
+  rule {
+    status             = "Enabled"
+    prefix             = "data/"
+    destination_bucket = "arn:aws:s3:::${scality_bucket.dest.bucket}"
+  }`
+
+const crrRulesTwo = crrRuleData + `
+  rule {
+    status             = "Enabled"
+    prefix             = "logs/"
+    destination_bucket = "arn:aws:s3:::${scality_bucket.dest.bucket}"
+  }`
+
+// TestAccBucketReplication_addRule covers the Update read-back: adding a second
+// rule without an id must not fail with "inconsistent result after apply".
+func TestAccBucketReplication_addRule(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_replication"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCRRConfig(name, crrRuleData),
+				Check:  resource.TestCheckResourceAttr("scality_bucket_replication.test", "rule.#", "1"),
+			},
+			{
+				Config: testAccCRRConfig(name, crrRulesTwo),
+				Check:  resource.TestCheckResourceAttr("scality_bucket_replication.test", "rule.#", "2"),
+			},
+		},
+	})
 }
 
 func TestAccBucketReplication_crr(t *testing.T) {
@@ -226,7 +263,7 @@ func TestAccBucketReplication_crr(t *testing.T) {
 		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_replication"),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCRRConfig(name),
+				Config: testAccCRRConfig(name, crrRuleEmpty),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "bucket"),
 					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "role"),
