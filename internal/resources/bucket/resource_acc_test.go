@@ -1,13 +1,122 @@
 package bucket_test
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
+	"github.com/cmrh/terraform-provider-scality/internal/client"
 )
+
+// checkBucketVersioningAPI asserts the bucket's real S3 versioning status,
+// reading the account credentials and bucket name out of state. expected is the
+// raw status: "" (Unversioned), "Enabled", or "Suspended".
+func checkBucketVersioningAPI(expected string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		b, ok := s.RootModule().Resources["scality_bucket.test"]
+		if !ok {
+			return fmt.Errorf("scality_bucket.test not in state")
+		}
+		k, ok := s.RootModule().Resources["scality_user_access_key.test"]
+		if !ok {
+			return fmt.Errorf("scality_user_access_key.test not in state")
+		}
+		s3 := client.NewS3Client(os.Getenv("SCALITY_ENDPOINT"), true)
+		status, err := s3.GetBucketVersioning(
+			context.Background(),
+			k.Primary.Attributes["access_key_id"],
+			k.Primary.Attributes["secret_access_key"],
+			b.Primary.Attributes["bucket"],
+		)
+		if err != nil {
+			return fmt.Errorf("get bucket versioning: %w", err)
+		}
+		if status != expected {
+			return fmt.Errorf("bucket versioning status = %q, want %q", status, expected)
+		}
+		return nil
+	}
+}
+
+func testAccBucketVersioningConfig(name string, versioning bool) string {
+	return testAccBucketBase(name) + fmt.Sprintf(`
+resource "scality_bucket" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = "%[1]s-bucket"
+  versioning         = %[2]t
+  depends_on         = [scality_user_policy.test]
+}
+`, name, versioning)
+}
+
+// TestAccBucket_objectLockVersioningConflict verifies the plan-time guard:
+// object_lock_enabled = true with versioning = false is rejected before apply.
+func TestAccBucket_objectLockVersioningConflict(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketBase(name) + fmt.Sprintf(`
+resource "scality_bucket" "test" {
+  account_access_key  = scality_user_access_key.test.access_key_id
+  account_secret_key  = scality_user_access_key.test.secret_access_key
+  bucket              = "%[1]s-bucket"
+  object_lock_enabled = true
+  versioning          = false
+  depends_on          = [scality_user_policy.test]
+}
+`, name),
+				ExpectError: regexp.MustCompile(`requires versioning to be enabled`),
+			},
+		},
+	})
+}
+
+// TestAccBucket_versioningLifecycle pins the three-state contract: versioning =
+// false on a new bucket leaves it Unversioned (NOT Suspended); enabling then
+// disabling lands on Suspended, the only "off" state reachable once enabled.
+func TestAccBucket_versioningLifecycle(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket"),
+		Steps: []resource.TestStep{
+			{ // created with false -> never enabled -> Unversioned
+				Config: testAccBucketVersioningConfig(name, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket.test", "versioning", "false"),
+					checkBucketVersioningAPI(""),
+				),
+			},
+			{ // true -> Enabled
+				Config: testAccBucketVersioningConfig(name, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket.test", "versioning", "true"),
+					checkBucketVersioningAPI("Enabled"),
+				),
+			},
+			{ // back to false -> was enabled -> Suspended
+				Config: testAccBucketVersioningConfig(name, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket.test", "versioning", "false"),
+					checkBucketVersioningAPI("Suspended"),
+				),
+			},
+		},
+	})
+}
 
 func testAccBucketBase(name string) string {
 	return acctest.ProviderBlock() + fmt.Sprintf(`

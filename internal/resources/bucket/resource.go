@@ -20,6 +20,7 @@ import (
 
 var _ resource.Resource = &BucketResource{}
 var _ resource.ResourceWithImportState = &BucketResource{}
+var _ resource.ResourceWithValidateConfig = &BucketResource{}
 
 type BucketResource struct {
 	clients *client.ProviderClients
@@ -64,7 +65,7 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				},
 			},
 			"versioning": schema.BoolAttribute{
-				MarkdownDescription: "Enable versioning on the bucket. Set to true to enable, false to suspend. Leave unset to not manage versioning.",
+				MarkdownDescription: "Enable object versioning. `true` enables it; `false` leaves it off (a new bucket stays Unversioned; a bucket that was previously enabled is Suspended, since S3 has no way back to Unversioned). Leave unset to not manage versioning.",
 				Optional:            true,
 			},
 			"tags": schema.MapAttribute{
@@ -73,6 +74,28 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				ElementType:         types.StringType,
 			},
 		},
+	}
+}
+
+func (r *BucketResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data BucketResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Object Lock requires versioning, and S3 keeps it enabled for the life of
+	// the bucket. versioning = false alongside object_lock_enabled = true is
+	// contradictory: the bucket would be Enabled regardless, drifting against the
+	// false in config. Catch it at plan time rather than failing mid-apply.
+	objectLock := !data.ObjectLockEnabled.IsNull() && !data.ObjectLockEnabled.IsUnknown() && data.ObjectLockEnabled.ValueBool()
+	versioningOff := !data.Versioning.IsNull() && !data.Versioning.IsUnknown() && !data.Versioning.ValueBool()
+	if objectLock && versioningOff {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("versioning"),
+			"versioning conflicts with Object Lock",
+			"object_lock_enabled = true requires versioning to be enabled. Set versioning = true, or remove it — Object Lock enables versioning automatically.",
+		)
 	}
 }
 
@@ -127,12 +150,13 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	if !data.Versioning.IsNull() && !objectLockEnabled {
-		status := "Suspended"
-		if data.Versioning.ValueBool() {
-			status = "Enabled"
-		}
-		if err := c.PutBucketVersioning(ctx, ak, sk, bucket, status); err != nil {
+	// Only enable versioning explicitly. A new bucket is already Unversioned, so
+	// versioning = false (or unset) needs no call — issuing Suspended here would
+	// push a pristine bucket into the Suspended state, which is a one-way door
+	// and means "was enabled, now off". Object Lock buckets have versioning
+	// enabled by CreateBucket, so the call is skipped for them.
+	if !objectLockEnabled && !data.Versioning.IsNull() && data.Versioning.ValueBool() {
+		if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Enabled"); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set bucket versioning: %s", err))
 			return
 		}
@@ -187,14 +211,11 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket versioning: %s", err))
 			return
 		}
-		switch status {
-		case "Enabled":
-			data.Versioning = types.BoolValue(true)
-		case "Suspended":
-			data.Versioning = types.BoolValue(false)
-		default:
-			data.Versioning = types.BoolNull()
-		}
+		// Enabled is the only "on" state. Both Suspended and Unversioned ("")
+		// mean versioning is off, so both map to false — keeping a managed
+		// versioning = false consistent whether the bucket is Unversioned (never
+		// enabled) or Suspended (previously enabled).
+		data.Versioning = types.BoolValue(status == "Enabled")
 	}
 
 	if !data.Tags.IsNull() {
@@ -239,19 +260,25 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 	bucket := plan.Bucket.ValueString()
 
 	if !plan.Versioning.Equal(state.Versioning) {
-		if plan.Versioning.IsNull() {
-			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Suspended"); err != nil {
-				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to suspend bucket versioning: %s", err))
+		if !plan.Versioning.IsNull() && plan.Versioning.ValueBool() {
+			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Enabled"); err != nil {
+				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to enable bucket versioning: %s", err))
 				return
 			}
 		} else {
-			status := "Suspended"
-			if plan.Versioning.ValueBool() {
-				status = "Enabled"
-			}
-			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, status); err != nil {
-				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket versioning: %s", err))
+			// Target is off (false) or unmanaged (null). Suspending only makes
+			// sense if versioning is currently Enabled; a bucket that was never
+			// enabled stays Unversioned rather than being pushed into Suspended.
+			current, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
+			if err != nil {
+				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket versioning: %s", err))
 				return
+			}
+			if current == "Enabled" {
+				if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Suspended"); err != nil {
+					resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to suspend bucket versioning: %s", err))
+					return
+				}
 			}
 		}
 	}
