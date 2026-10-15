@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-15
+
 ### Fixed
 - `scality_bucket` no longer suspends versioning on a newly created bucket. `versioning = false` (or unset) now leaves a new bucket **Unversioned** instead of issuing `PutBucketVersioning(Suspended)` — Suspended and Unversioned are distinct S3 states, and Suspended is a one-way door (there is no API back to Unversioned). Versioning is only suspended when turning it off on a bucket that is currently Enabled; removing the attribute entirely now leaves the bucket's versioning untouched (previously it could suspend an Enabled bucket). Reads map both `Suspended` and Unversioned to `false` (Enabled is the only `true` state). (#63)
 - `scality_iam_policy` no longer fails with `LimitExceeded` after repeated `policy_document` edits. IAM managed policies cap at 5 versions; Update now prunes the oldest non-default version before creating the new one, so a policy can be edited indefinitely. (#67)
