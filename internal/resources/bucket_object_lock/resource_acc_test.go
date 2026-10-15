@@ -2,12 +2,35 @@ package bucketobjectlock_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
+
+func TestAccBucketObjectLock_retentionMutuallyExclusive(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: testAccBucketObjectLockBase(name) + `
+resource "scality_bucket_object_lock" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+  retention_mode     = "GOVERNANCE"
+  retention_days     = 30
+  retention_years    = 1
+  depends_on         = [scality_user_policy.test]
+}
+`,
+			ExpectError: regexp.MustCompile(`exactly one of retention_days or retention_years`),
+		}},
+	})
+}
 
 func testAccBucketObjectLockBase(name string) string {
 	return acctest.ProviderBlock() + fmt.Sprintf(`

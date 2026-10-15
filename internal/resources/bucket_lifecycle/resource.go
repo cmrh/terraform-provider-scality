@@ -19,6 +19,30 @@ import (
 
 var _ resource.Resource = &BucketLifecycleResource{}
 var _ resource.ResourceWithImportState = &BucketLifecycleResource{}
+var _ resource.ResourceWithValidateConfig = &BucketLifecycleResource{}
+
+func (r *BucketLifecycleResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data BucketLifecycleResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	for i, rule := range data.Rules {
+		rulePath := path.Root("rule").AtListIndex(i)
+		hasExpDays := !rule.ExpirationDays.IsNull()
+		hasExpDate := !rule.ExpirationDate.IsNull()
+		if hasExpDays && hasExpDate {
+			resp.Diagnostics.AddAttributeError(rulePath, "Conflicting expiration", "Set only one of expiration_days or expiration_date on a rule.")
+		}
+		if !hasExpDays && !hasExpDate &&
+			rule.NoncurrentVersionExpirationDays.IsNull() &&
+			rule.AbortIncompleteMultipartUploadDays.IsNull() {
+			resp.Diagnostics.AddAttributeError(rulePath, "Rule has no action",
+				"Each lifecycle rule must set at least one action: expiration_days, expiration_date, noncurrent_version_expiration_days, or abort_incomplete_multipart_upload_days.")
+		}
+	}
+}
 
 type BucketLifecycleResource struct {
 	clients *client.ProviderClients

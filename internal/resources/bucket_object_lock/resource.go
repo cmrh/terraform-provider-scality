@@ -19,6 +19,24 @@ import (
 
 var _ resource.Resource = &BucketObjectLockResource{}
 var _ resource.ResourceWithImportState = &BucketObjectLockResource{}
+var _ resource.ResourceWithValidateConfig = &BucketObjectLockResource{}
+
+func (r *BucketObjectLockResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data BucketObjectLockResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	daysSet := !data.RetentionDays.IsNull()
+	yearsSet := !data.RetentionYears.IsNull()
+	switch {
+	case daysSet && yearsSet:
+		resp.Diagnostics.AddError("Conflicting retention period", "Set exactly one of retention_days or retention_years, not both.")
+	case !daysSet && !yearsSet:
+		resp.Diagnostics.AddError("Missing retention period", "Set exactly one of retention_days or retention_years.")
+	}
+}
 
 type BucketObjectLockResource struct {
 	clients *client.ProviderClients

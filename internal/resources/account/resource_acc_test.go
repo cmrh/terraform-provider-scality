@@ -2,6 +2,8 @@ package account_test
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -9,6 +11,29 @@ import (
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
+
+func TestAccAccount_tooManyCustomAttributes(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	var b strings.Builder
+	for i := 0; i < 11; i++ {
+		fmt.Fprintf(&b, "    k%d = \"v\"\n", i)
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_account" "test" {
+  name          = %[1]q
+  email_address = "%[1]s@test.local"
+  custom_attributes = {
+%[2]s  }
+}
+`, name, b.String()),
+			ExpectError: regexp.MustCompile(`at most 10 custom attributes`),
+		}},
+	})
+}
 
 // TestAccAccount_quotaUpdateInPlace verifies that changing quota_max updates the
 // account in place (ResourceActionUpdate) rather than destroying+recreating it.
