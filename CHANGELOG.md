@@ -4,6 +4,12 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Fixed
+- `scality_bucket` no longer suspends versioning on a newly created bucket. `versioning = false` (or unset) now leaves a new bucket **Unversioned** instead of issuing `PutBucketVersioning(Suspended)` — Suspended and Unversioned are distinct S3 states, and Suspended is a one-way door (there is no API back to Unversioned). Versioning is only suspended when turning it off on a bucket that is currently Enabled. Reads map both `Suspended` and Unversioned to `false` (Enabled is the only `true` state). (#63)
+
+### Added
+- `scality_bucket` now rejects `object_lock_enabled = true` combined with `versioning = false` at plan time. Object Lock requires versioning, so the combination is contradictory and previously drifted or failed mid-apply; the error now names the fix (set `versioning = true` or omit it). (#64)
+
 ## [1.1.1] - 2026-10-12
 
 ### Fixed
