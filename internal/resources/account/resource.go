@@ -272,7 +272,15 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 	data.ARN = types.StringValue(account.ARN)
 	data.CanonicalID = types.StringValue(account.CanonicalID)
 	data.CreateDate = types.StringValue(account.CreateDate)
-	data.QuotaMax = types.Int64Value(account.QuotaMax)
+	// quota_max: the Vault IAM API's load-balanced read replicas lag on a recent
+	// UpdateAccountQuota, so a post-apply GetAccount can return the prior value and
+	// surface phantom in-place drift. Preserve the state value and only take the
+	// API value on the initial (import) read — same trade-off as custom_attributes
+	// below (out-of-band quota edits aren't surfaced on refresh; the next apply
+	// that changes quota_max reconciles state to config).
+	if data.QuotaMax.IsNull() || data.QuotaMax.IsUnknown() {
+		data.QuotaMax = types.Int64Value(account.QuotaMax)
+	}
 	// The server lowercases the email; keep the configured casing when it only
 	// differs by case, so a mixed-case email does not force a perpetual replace.
 	if !strings.EqualFold(data.EmailAddress.ValueString(), account.EmailAddress) {
