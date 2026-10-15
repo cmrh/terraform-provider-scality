@@ -43,14 +43,15 @@ resource "scality_bucket" "locked" {
 | `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `bucket` | String | Yes | Bucket name. Changing this replaces the resource. |
 | `object_lock_enabled` | Bool | No | Enable Object Lock on the bucket. Can only be set at creation time. Changing this replaces the resource. |
-| `versioning` | Bool | No | Enable versioning on the bucket. |
+| `versioning` | Bool | No | `true` enables versioning; `false` leaves it off. Leave unset to not manage versioning. |
 | `tags` | Map(String) | No | Key-value tags for the bucket. |
 
 ## Notes
 
 - Bucket operations use S3 API signing (service `s3`), distinct from IAM operations.
 - Versioning and tags are managed inline. For other bucket features (encryption, lifecycle, etc.), use the dedicated sub-resources.
-- When `object_lock_enabled` is true, S3 auto-enables versioning. Use `scality_bucket_object_lock` to configure the retention policy.
+- When `object_lock_enabled` is true, S3 auto-enables versioning. Use `scality_bucket_object_lock` to configure the retention policy. Setting `versioning = false` alongside `object_lock_enabled = true` is rejected at plan time, since Object Lock requires versioning.
+- Versioning has three S3 states: **Unversioned** (never configured), **Enabled**, and **Suspended**. A new bucket created with `versioning = false` stays Unversioned — it is not Suspended. Suspended is only reached by turning versioning off after it was Enabled, and there is no way back to Unversioned once a bucket has ever been Enabled.
 - Deleting this resource deletes the bucket. The bucket must be empty.
 
 ## Credential Dependencies
