@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -272,7 +273,11 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 	data.CanonicalID = types.StringValue(account.CanonicalID)
 	data.CreateDate = types.StringValue(account.CreateDate)
 	data.QuotaMax = types.Int64Value(account.QuotaMax)
-	data.EmailAddress = types.StringValue(account.EmailAddress)
+	// The server lowercases the email; keep the configured casing when it only
+	// differs by case, so a mixed-case email does not force a perpetual replace.
+	if !strings.EqualFold(data.EmailAddress.ValueString(), account.EmailAddress) {
+		data.EmailAddress = types.StringValue(account.EmailAddress)
+	}
 
 	if data.CustomAttributes.IsNull() || data.CustomAttributes.IsUnknown() {
 		// Initial read (import path or never-set). Trust the API value.
