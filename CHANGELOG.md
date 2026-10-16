@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-10-16
+
 ### Fixed
 - Applying several bucket-configuration resources to the same bucket in parallel (`scality_bucket_policy`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, and the other `scality_bucket_*` resources) no longer silently drops one of the writes. The backend persists all bucket subresources into a single record via read-modify-write, so concurrent writes raced; the provider now serializes mutating requests per bucket within an apply. Users no longer need `-parallelism=1` or a `depends_on` chain to work around it; writes to different buckets still run in parallel. (#84)
 
