@@ -1,6 +1,9 @@
 package client
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // ProviderClients bundles IAM, Console, and S3 clients for resource access.
 type ProviderClients struct {
@@ -12,6 +15,50 @@ type ProviderClients struct {
 	// Per-account resources fall back to these when they omit their own
 	// account_access_key/account_secret_key. Nil when no role was assumed.
 	Assumed *AssumedAccountCreds
+
+	// bucketLocks serializes metadata-mutating writes to the same bucket. The
+	// backend persists all bucket subresources (policy, encryption, lifecycle,
+	// ...) into one record via read-modify-write, so concurrent writes to
+	// distinct subresources of the same bucket clobber one another.
+	bucketLocks keyedMutex
+}
+
+// LockBucket blocks until the caller holds the write lock for bucket. Every
+// scality_bucket_* resource takes it around its Create/Update/Delete so
+// same-bucket writes in one apply are serialized; different buckets never
+// contend.
+func (p *ProviderClients) LockBucket(bucket string) { p.bucketLocks.lock(bucket) }
+
+// UnlockBucket releases the lock taken by LockBucket.
+func (p *ProviderClients) UnlockBucket(bucket string) { p.bucketLocks.unlock(bucket) }
+
+// keyedMutex is a zero-value-usable set of mutexes keyed by string.
+type keyedMutex struct {
+	mu    sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func (k *keyedMutex) lock(key string) {
+	k.mu.Lock()
+	if k.locks == nil {
+		k.locks = make(map[string]*sync.Mutex)
+	}
+	m, ok := k.locks[key]
+	if !ok {
+		m = &sync.Mutex{}
+		k.locks[key] = m
+	}
+	k.mu.Unlock()
+	m.Lock()
+}
+
+func (k *keyedMutex) unlock(key string) {
+	k.mu.Lock()
+	m := k.locks[key]
+	k.mu.Unlock()
+	if m != nil {
+		m.Unlock()
+	}
 }
 
 // AssumedAccountCreds are per-account credentials (with session token) that
