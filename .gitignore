@@ -27,3 +27,6 @@ terraform-provider-scality_*_manifest.json
 CLAUDE.md
 todo.md
 RELEASE_NOTES.md
+
+# Internal development audit — not part of the published provider
+BUG-CLASS-AUDIT.md
