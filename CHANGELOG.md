@@ -11,6 +11,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Added
 - Acceptance coverage for previously untested lifecycle paths: multiple `scality_bucket_lifecycle` rules in a non-sorted order (round-trip in configured order) and `expiration_date` (round-trips verbatim) — both confirmed stable against the API. (#90)
+- Automatic retry with exponential backoff and jitter for transient failures on S3 and IAM/account requests. Only requests the server provably did not process are retried — network errors, throttling (HTTP 429/503), and the retryable 409 conflict codes (`OperationAborted`, `ConcurrentModification`) — so a non-idempotent create is never duplicated (HTTP 500 is not retried). Retries respect context cancellation. (#93)
 
 ## [1.1.4] - 2026-10-16
 
