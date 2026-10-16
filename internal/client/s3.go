@@ -169,20 +169,17 @@ func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, 
 		httpReq.Header.Set("Content-MD5", base64.StdEncoding.EncodeToString(md5Hash[:]))
 	}
 
-	resp, err := c.HTTPClient.Do(httpReq)
+	respBody, statusCode, err := doWithRetry(ctx, func() (*http.Response, error) {
+		req := httpReq.Clone(ctx)
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+		return c.HTTPClient.Do(req)
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, 0, fmt.Errorf("reading response: %w", err)
-	}
-
-	return respBody, resp.StatusCode, nil
+	return respBody, statusCode, nil
 }
 
 func (c *S3Client) formatS3Error(respBody []byte, statusCode int, operation string) error {

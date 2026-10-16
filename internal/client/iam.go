@@ -158,20 +158,17 @@ func (c *IAMClient) DoSignedRequest(ctx context.Context, action string, params u
 	}
 	httpReq.Header.Set("Content-Type", contentTypeForm)
 
-	resp, err := c.HTTPClient.Do(httpReq)
+	body, statusCode, err := doWithRetry(ctx, func() (*http.Response, error) {
+		req := httpReq.Clone(ctx)
+		req.Body = io.NopCloser(strings.NewReader(payload))
+		req.ContentLength = int64(len(payload))
+		return c.HTTPClient.Do(req)
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	return body, resp.StatusCode, nil
+	return body, statusCode, nil
 }
 
 // XML error response for IAM API.
@@ -247,29 +244,26 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 		httpReq.Header.Set("X-Amz-Security-Token", c.SessionToken)
 	}
 
-	resp, err := c.HTTPClient.Do(httpReq)
+	respBody, statusCode, err := doWithRetry(ctx, func() (*http.Response, error) {
+		req := httpReq.Clone(ctx)
+		req.Body = io.NopCloser(strings.NewReader(body))
+		req.ContentLength = int64(len(body))
+		return c.HTTPClient.Do(req)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
+	if statusCode >= 400 {
 		var iamErr iamErrorResponse
 		if xmlErr := xml.Unmarshal(respBody, &iamErr); xmlErr == nil && iamErr.Error.Code != "" {
 			return nil, &APIError{
 				Code:       iamErr.Error.Code,
 				Message:    iamErr.Error.Message,
-				StatusCode: resp.StatusCode,
+				StatusCode: statusCode,
 			}
 		}
-		return nil, fmt.Errorf("IAM request failed (status %d): %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("IAM request failed (status %d): %s", statusCode, string(respBody))
 	}
 
 	return respBody, nil
