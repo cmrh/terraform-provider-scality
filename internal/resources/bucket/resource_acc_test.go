@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
@@ -297,6 +298,40 @@ resource "scality_bucket" "test" {
 					resource.TestCheckResourceAttr("scality_bucket.test", "tags.Environment", "production"),
 					resource.TestCheckResourceAttr("scality_bucket.test", "tags.Team", "platform"),
 				),
+			},
+		},
+	})
+}
+
+// TestAccBucket_tagsEmptyRoundTrip guards the empty-collection round-trip: a
+// configured tags = {} must survive apply->read unchanged. Previously Read
+// forced an empty map to null, producing a perpetual "+ tags = {}" diff.
+func TestAccBucket_tagsEmptyRoundTrip(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	cfg := testAccBucketBase(name) + fmt.Sprintf(`
+resource "scality_bucket" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = "%[1]s-bucket"
+  tags               = {}
+  depends_on         = [scality_user_policy.test]
+}
+`, name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket"),
+		Steps: []resource.TestStep{
+			{
+				Config: cfg,
+				Check:  resource.TestCheckResourceAttr("scality_bucket.test", "tags.%", "0"),
+			},
+			{
+				Config: cfg,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
 			},
 		},
 	})

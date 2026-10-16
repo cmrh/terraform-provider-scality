@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
@@ -141,6 +142,65 @@ resource "scality_bucket_lifecycle" "test" {
 				ImportStateIdFunc:                    acctest.ImportStateIdFuncIdentityOnly(t, "scality_bucket_lifecycle.test", "bucket"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "bucket",
+			},
+		},
+	})
+}
+
+// TestAccBucketLifecycle_multiRuleOrderAndDate covers two paths with no prior
+// coverage: multiple rules in a non-sorted order (must round-trip in configured
+// order) and expiration_date (must round-trip verbatim). A clean second plan
+// catches any server reordering or date canonicalization drift.
+func TestAccBucketLifecycle_multiRuleOrderAndDate(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	cfg := testAccBucketLifecycleBase(name) + `
+resource "scality_bucket_lifecycle" "test" {
+  account_access_key = scality_user_access_key.test.access_key_id
+  account_secret_key = scality_user_access_key.test.secret_access_key
+  bucket             = scality_bucket.test.bucket
+
+  rule {
+    id              = "z-rule"
+    status          = "Enabled"
+    prefix          = "z/"
+    expiration_days = 30
+  }
+  rule {
+    id              = "m-rule"
+    status          = "Enabled"
+    prefix          = "m/"
+    expiration_date = "2030-06-15T00:00:00Z"
+  }
+  rule {
+    id              = "a-rule"
+    status          = "Enabled"
+    prefix          = "a/"
+    expiration_days = 90
+  }
+
+  depends_on = [scality_user_policy.test]
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_lifecycle"),
+		Steps: []resource.TestStep{
+			{
+				Config: cfg,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.0.id", "z-rule"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.1.id", "m-rule"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.2.id", "a-rule"),
+					resource.TestCheckResourceAttr("scality_bucket_lifecycle.test", "rule.1.expiration_date", "2030-06-15T00:00:00Z"),
+				),
+			},
+			{
+				Config: cfg,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
 			},
 		},
 	})
