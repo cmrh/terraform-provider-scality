@@ -6,6 +6,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Fixed
 - `scality_bucket` with `tags = {}` (an empty, non-null map) no longer drifts to `null` on refresh. Create saved the empty map to state but Read forced it to null when the server reported no tags, giving a perpetual `+ tags = {}` plan and a no-op tag delete on every apply. Read now maps "no tags" to an empty map so a configured `{}` round-trips. (#90)
+- `scality_user_access_key` and `scality_iam_role_policy_attachment` no longer block all plans when their parent (the user or role) is deleted outside Terraform. Listing a deleted parent's children returns `NoSuchEntity`, which Read treated as a hard error; Read now removes the resource from state so the next plan recreates it. (#95)
 
 ### Added
 - Acceptance coverage for previously untested lifecycle paths: multiple `scality_bucket_lifecycle` rules in a non-sorted order (round-trip in configured order) and `expiration_date` (round-trips verbatim) — both confirmed stable against the API. (#90)

@@ -158,6 +158,10 @@ func (r *UserAccessKeyResource) Read(ctx context.Context, req resource.ReadReque
 
 	keys, err := c.ListUserAccessKeys(ctx, ak, sk, data.Username.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) { // parent user deleted out of band
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list access keys: %s", err))
 		return
 	}
