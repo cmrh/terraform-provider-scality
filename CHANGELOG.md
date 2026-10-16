@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Fixed
+- `scality_bucket_lifecycle` no longer breaks `terraform validate` when `rule` is built from a `dynamic` block over a value that isn't known at validate time (e.g. a module whose rules come from input variables). The `ValidateConfig` added in 1.1.2 (#70) decoded the config into a Go slice, which cannot hold an unknown list; it now reads `rule` as a list and skips validation until the value is known, and ignores rules whose action values are still unknown. Regression in 1.1.2/1.1.3. (#87)
+
 ## [1.1.3] - 2026-10-16
 
 ### Fixed

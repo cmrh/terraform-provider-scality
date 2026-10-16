@@ -22,18 +22,35 @@ var _ resource.ResourceWithImportState = &BucketLifecycleResource{}
 var _ resource.ResourceWithValidateConfig = &BucketLifecycleResource{}
 
 func (r *BucketLifecycleResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data BucketLifecycleResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	// Read rule as a list first: a dynamic block over an unknown for_each (e.g. a
+	// module whose rules depend on variables) makes the whole list unknown, which
+	// a []LifecycleRuleModel slice cannot hold. Nothing to validate until known.
+	var rules types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("rule"), &rules)...)
+	if resp.Diagnostics.HasError() || rules.IsNull() || rules.IsUnknown() {
+		return
+	}
+
+	var data []LifecycleRuleModel
+	resp.Diagnostics.Append(rules.ElementsAs(ctx, &data, false)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	for i, rule := range data.Rules {
+	for i, rule := range data {
 		rulePath := path.Root("rule").AtListIndex(i)
-		hasExpDays := !rule.ExpirationDays.IsNull()
-		hasExpDate := !rule.ExpirationDate.IsNull()
+		hasExpDays := !rule.ExpirationDays.IsNull() && !rule.ExpirationDays.IsUnknown()
+		hasExpDate := !rule.ExpirationDate.IsNull() && !rule.ExpirationDate.IsUnknown()
 		if hasExpDays && hasExpDate {
 			resp.Diagnostics.AddAttributeError(rulePath, "Conflicting expiration", "Set only one of expiration_days or expiration_date on a rule.")
+		}
+
+		// Skip the no-action check when any action value is unknown — it may
+		// resolve to an action at apply time; only error when all are known-unset.
+		if rule.ExpirationDays.IsUnknown() || rule.ExpirationDate.IsUnknown() ||
+			rule.NoncurrentVersionExpirationDays.IsUnknown() ||
+			rule.AbortIncompleteMultipartUploadDays.IsUnknown() {
+			continue
 		}
 		if !hasExpDays && !hasExpDate &&
 			rule.NoncurrentVersionExpirationDays.IsNull() &&
