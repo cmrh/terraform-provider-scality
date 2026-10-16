@@ -147,10 +147,16 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
+	// The bucket now exists. If a later step fails, persist state so the bucket
+	// is tracked (Terraform taints it on the Create error) and the next apply
+	// replaces it, instead of orphaning it and failing with
+	// BucketAlreadyOwnedByYou.
+
 	// Only ever enable explicitly; a new bucket is already Unversioned, and Object Lock enables versioning itself.
 	if !objectLockEnabled && !data.Versioning.IsNull() && data.Versioning.ValueBool() {
 		if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Enabled"); err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set bucket versioning: %s", err))
+			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 			return
 		}
 	}
@@ -164,6 +170,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		if len(tags) > 0 {
 			if err := c.PutBucketTagging(ctx, ak, sk, bucket, tags); err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set bucket tags: %s", err))
+				resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 				return
 			}
 		}
