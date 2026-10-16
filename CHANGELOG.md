@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Fixed
+- Applying several bucket-configuration resources to the same bucket in parallel (`scality_bucket_policy`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, and the other `scality_bucket_*` resources) no longer silently drops one of the writes. The backend persists all bucket subresources into a single record via read-modify-write, so concurrent writes raced; the provider now serializes mutating requests per bucket within an apply. Users no longer need `-parallelism=1` or a `depends_on` chain to work around it; writes to different buckets still run in parallel. (#84)
+
 ### Changed
 - `CONTRIBUTING.md` now documents the resource-lifecycle contract (round-trip, Create/Update symmetry, `null` semantics, no replace on mutable fields, plan-time validation) and a per-resource audit checklist, codifying the invariants behind the v1.1.2 bug-fix release. (#80)
 - Added a shared `acctest.LifecycleTest` helper (apply → idempotency re-plan → import-verify) enforcing the lifecycle contract at the acceptance gate, and backfilled `ImportStateVerify` for `scality_account` and `scality_bucket_replication` (test-only; `scality_console_account` is excluded because the Console API has no read-back for import to verify against). (#81)

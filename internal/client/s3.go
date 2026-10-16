@@ -26,6 +26,11 @@ type S3Client struct {
 	// SessionToken, when set, is sent as X-Amz-Security-Token — set when the
 	// credentials are STS assumed-role credentials.
 	SessionToken string
+	// bucketLocks serializes mutating requests to the same bucket. The backend
+	// persists all bucket subresources into one record via read-modify-write, so
+	// concurrent writes to distinct subresources clobber one another. A pointer
+	// so assumed-role client clones (clone := *c) share the same lock set.
+	bucketLocks *keyedMutex
 }
 
 func NewS3Client(endpoint string, insecureSkipVerify bool) *S3Client {
@@ -42,9 +47,10 @@ func NewS3Client(endpoint string, insecureSkipVerify bool) *S3Client {
 	}
 
 	return &S3Client{
-		Endpoint:   strings.TrimRight(endpoint, "/"),
-		Region:     awsRegion,
-		HTTPClient: httpClient,
+		Endpoint:    strings.TrimRight(endpoint, "/"),
+		Region:      awsRegion,
+		HTTPClient:  httpClient,
+		bucketLocks: &keyedMutex{},
 	}
 }
 
@@ -55,6 +61,12 @@ type s3ErrorResponse struct {
 }
 
 func (c *S3Client) doRequest(ctx context.Context, method, accessKey, secretKey, bucket, subresource string, body []byte, extraHeaders map[string]string) ([]byte, int, error) {
+	// Serialize mutating requests to the same bucket; reads need no lock.
+	if c.bucketLocks != nil && bucket != "" && method != http.MethodGet && method != http.MethodHead {
+		c.bucketLocks.lock(bucket)
+		defer c.bucketLocks.unlock(bucket)
+	}
+
 	parsedURL, err := url.Parse(c.Endpoint)
 	if err != nil {
 		return nil, 0, fmt.Errorf("parsing endpoint: %w", err)
