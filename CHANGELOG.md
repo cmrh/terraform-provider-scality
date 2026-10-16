@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Changed
+- `CONTRIBUTING.md` now documents the resource-lifecycle contract (round-trip, Create/Update symmetry, `null` semantics, no replace on mutable fields, plan-time validation) and a per-resource audit checklist, codifying the invariants behind the v1.1.2 bug-fix release. (#80)
+
 ## [1.1.2] - 2026-10-15
 
 ### Fixed
