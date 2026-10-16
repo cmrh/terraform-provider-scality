@@ -215,7 +215,15 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 			return
 		}
 		if tags == nil {
-			data.Tags = types.MapNull(types.StringType)
+			// The server reports "no tags" identically for a configured empty
+			// map and for genuinely unset tags; map it to an empty (non-null)
+			// map so a configured {} round-trips (apply {} then plan is empty).
+			mapVal, diags := types.MapValueFrom(ctx, types.StringType, map[string]string{})
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			data.Tags = mapVal
 		} else {
 			tagValues := make(map[string]types.String, len(tags))
 			for k, v := range tags {

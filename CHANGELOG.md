@@ -4,6 +4,12 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Fixed
+- `scality_bucket` with `tags = {}` (an empty, non-null map) no longer drifts to `null` on refresh. Create saved the empty map to state but Read forced it to null when the server reported no tags, giving a perpetual `+ tags = {}` plan and a no-op tag delete on every apply. Read now maps "no tags" to an empty map so a configured `{}` round-trips. (#90)
+
+### Added
+- Acceptance coverage for previously untested lifecycle paths: multiple `scality_bucket_lifecycle` rules in a non-sorted order (round-trip in configured order) and `expiration_date` (round-trips verbatim) — both confirmed stable against the API. (#90)
+
 ## [1.1.4] - 2026-10-16
 
 ### Fixed
