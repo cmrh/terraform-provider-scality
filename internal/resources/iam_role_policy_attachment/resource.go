@@ -141,6 +141,10 @@ func (r *IAMRolePolicyAttachmentResource) Read(ctx context.Context, req resource
 
 	policies, err := c.ListAttachedRolePolicies(ctx, ak, sk, data.RoleName.ValueString())
 	if err != nil {
+		if client.IsNotFound(err) { // parent role deleted out of band
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to list attached role policies: %s", err))
 		return
 	}
