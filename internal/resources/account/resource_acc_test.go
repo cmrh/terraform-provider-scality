@@ -99,28 +99,30 @@ func TestAccAccount_basic(t *testing.T) {
 	name := acctest.RandomName("acctest")
 	resourceName := "scality_account.test"
 
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:             acctest.CheckResourceDestroyed("scality_account"),
-		Steps: []resource.TestStep{
-			{
-				Config: acctest.ProviderBlock() + fmt.Sprintf(`
+	acctest.LifecycleTest(t, acctest.LifecycleCase{
+		ResourceName: resourceName,
+		PreCheck:     func() { acctest.PreCheck(t) },
+		CheckDestroy: acctest.CheckResourceDestroyed("scality_account"),
+		Config: acctest.ProviderBlock() + fmt.Sprintf(`
 resource "scality_account" "test" {
   name          = %[1]q
   email_address = "%[1]s@test.local"
 }
 `, name),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", name),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "arn"),
-					resource.TestCheckResourceAttrSet(resourceName, "canonical_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "create_date"),
-					resource.TestCheckResourceAttrSet(resourceName, "access_key"),
-					resource.TestCheckResourceAttrSet(resourceName, "secret_key"),
-				),
-			},
+		Check: resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr(resourceName, "name", name),
+			resource.TestCheckResourceAttrSet(resourceName, "id"),
+			resource.TestCheckResourceAttrSet(resourceName, "arn"),
+			resource.TestCheckResourceAttrSet(resourceName, "canonical_id"),
+			resource.TestCheckResourceAttrSet(resourceName, "create_date"),
+			resource.TestCheckResourceAttrSet(resourceName, "access_key"),
+			resource.TestCheckResourceAttrSet(resourceName, "secret_key"),
+		),
+		// Imported by name; access_key/secret_key are minted once at create and
+		// cannot be recovered on import.
+		Import: &acctest.ImportCheck{
+			IdFunc:       acctest.ImportStateIdFromAttr(resourceName, "name"),
+			VerifyIgnore: []string{"access_key", "secret_key"},
 		},
 	})
 }

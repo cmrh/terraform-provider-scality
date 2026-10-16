@@ -256,25 +256,27 @@ func TestAccBucketReplication_addRule(t *testing.T) {
 
 func TestAccBucketReplication_crr(t *testing.T) {
 	name := acctest.RandomName("acctest")
+	resourceName := "scality_bucket_replication.test"
 
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket_replication"),
-		Steps: []resource.TestStep{
-			{
-				Config: testAccCRRConfig(name, crrRuleEmpty),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "bucket"),
-					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "role"),
-					resource.TestCheckResourceAttr("scality_bucket_replication.test", "rule.0.status", "Enabled"),
-					resource.TestCheckResourceAttrSet("scality_bucket_replication.test", "rule.0.destination_bucket"),
-					resource.TestCheckResourceAttrSet("scality_account.source", "access_key"),
-					resource.TestCheckResourceAttrSet("scality_account.dest", "access_key"),
-					resource.TestCheckResourceAttrSet("scality_iam_role.source", "arn"),
-					resource.TestCheckResourceAttrSet("scality_iam_role.dest", "arn"),
-				),
-			},
+	acctest.LifecycleTest(t, acctest.LifecycleCase{
+		ResourceName: resourceName,
+		PreCheck:     func() { acctest.PreCheck(t) },
+		CheckDestroy: acctest.CheckResourceDestroyed("scality_bucket_replication"),
+		Config:       testAccCRRConfig(name, crrRuleEmpty),
+		Check: resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttrSet(resourceName, "bucket"),
+			resource.TestCheckResourceAttrSet(resourceName, "role"),
+			resource.TestCheckResourceAttr(resourceName, "rule.0.status", "Enabled"),
+			resource.TestCheckResourceAttrSet(resourceName, "rule.0.destination_bucket"),
+			resource.TestCheckResourceAttrSet("scality_account.source", "access_key"),
+			resource.TestCheckResourceAttrSet("scality_account.dest", "access_key"),
+			resource.TestCheckResourceAttrSet("scality_iam_role.source", "arn"),
+			resource.TestCheckResourceAttrSet("scality_iam_role.dest", "arn"),
+		),
+		// Import ID is ACCESS_KEY:SECRET_KEY:BUCKET; the resource has no "id".
+		Import: &acctest.ImportCheck{
+			IdFunc:         acctest.ImportStateIdFunc(resourceName, "bucket"),
+			IdentifierAttr: "bucket",
 		},
 	})
 }
