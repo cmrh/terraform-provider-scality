@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
 	"github.com/cmrh/terraform-provider-scality/internal/client"
@@ -147,6 +148,84 @@ func ImportStateIdFuncIdentityOnly(t *testing.T, resourceName string, idAttrs ..
 			parts = append(parts, rs.Primary.Attributes[attr])
 		}
 		return strings.Join(parts, ":"), nil
+	}
+}
+
+// ImportCheck configures the import-verify step of a LifecycleTest.
+type ImportCheck struct {
+	// IdFunc derives the import ID from prior state. Nil uses the resource's
+	// default ID attribute (passthrough import).
+	IdFunc resource.ImportStateIdFunc
+	// VerifyIgnore lists attributes import cannot reconstruct (e.g. write-once
+	// secrets) and must be excluded from the verify diff.
+	VerifyIgnore []string
+	// IdentifierAttr names the attribute used to match imported state to prior
+	// state when the resource has no "id" attribute.
+	IdentifierAttr string
+}
+
+// LifecycleCase drives LifecycleTest.
+type LifecycleCase struct {
+	ResourceName string
+	PreCheck     func()
+	CheckDestroy resource.TestCheckFunc
+	Config       string
+	Check        resource.TestCheckFunc
+	// SkipIdempotency omits the explicit re-plan step (the framework's
+	// automatic post-apply refresh still asserts an empty plan).
+	SkipIdempotency bool
+	// Import, when set, adds an ImportStateVerify step.
+	Import *ImportCheck
+}
+
+// LifecycleTest runs the standard resource round-trip test enforcing the
+// resource-lifecycle contract in CONTRIBUTING.md: apply (with the framework's
+// automatic post-apply empty-plan refresh), an explicit idempotency re-plan,
+// and optional import-verify. Use it so every resource is checked the same way.
+func LifecycleTest(t *testing.T, c LifecycleCase) {
+	t.Helper()
+	steps := []resource.TestStep{{
+		Config: c.Config,
+		Check:  c.Check,
+	}}
+	if !c.SkipIdempotency {
+		steps = append(steps, resource.TestStep{
+			Config: c.Config,
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+			},
+		})
+	}
+	if c.Import != nil {
+		step := resource.TestStep{
+			ResourceName:                         c.ResourceName,
+			ImportState:                          true,
+			ImportStateVerify:                    true,
+			ImportStateVerifyIgnore:              c.Import.VerifyIgnore,
+			ImportStateVerifyIdentifierAttribute: c.Import.IdentifierAttr,
+		}
+		if c.Import.IdFunc != nil {
+			step.ImportStateIdFunc = c.Import.IdFunc
+		}
+		steps = append(steps, step)
+	}
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 c.PreCheck,
+		ProtoV6ProviderFactories: TestProtoV6ProviderFactories,
+		CheckDestroy:             c.CheckDestroy,
+		Steps:                    steps,
+	})
+}
+
+// ImportStateIdFromAttr returns a single state attribute as the import ID, for
+// resources imported by a non-"id" attribute (e.g. account by name).
+func ImportStateIdFromAttr(resourceName, attr string) resource.ImportStateIdFunc {
+	return func(s *terraform.State) (string, error) {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("resource not found: %s", resourceName)
+		}
+		return rs.Primary.Attributes[attr], nil
 	}
 }
 

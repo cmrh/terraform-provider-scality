@@ -6,6 +6,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Changed
 - `CONTRIBUTING.md` now documents the resource-lifecycle contract (round-trip, Create/Update symmetry, `null` semantics, no replace on mutable fields, plan-time validation) and a per-resource audit checklist, codifying the invariants behind the v1.1.2 bug-fix release. (#80)
+- Added a shared `acctest.LifecycleTest` helper (apply → idempotency re-plan → import-verify) enforcing the lifecycle contract at the acceptance gate, and backfilled `ImportStateVerify` for `scality_account` and `scality_bucket_replication` (test-only; `scality_console_account` is excluded because the Console API has no read-back for import to verify against). (#81)
 
 ## [1.1.2] - 2026-10-15
 
