@@ -16,6 +16,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ### Changed
 - `CONTRIBUTING.md` and the pull-request template now document the resource lifecycle as an enforced gate: every resource must run through `acctest.LifecycleTest` (round-trip, idempotency, import-verify) and be tested with unknown, null, and empty inputs, out-of-band deletion, and — for shared-record resources — parallel apply; plus a "verify server behavior, don't assume it" rule. Codifies the lessons from the v1.1.2–v1.1.5 bug-fix work. (#101)
+- Added unknown-value `ValidateConfig` unit tests for `scality_bucket`, `scality_bucket_encryption`, and `scality_account`, so the "validators must tolerate unknown inputs" rule is enforced for every validator rather than asserted. (#105)
 
 ## [1.1.4] - 2026-10-16
 
