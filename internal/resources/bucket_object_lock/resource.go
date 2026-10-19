@@ -28,6 +28,12 @@ func (r *BucketObjectLockResource) ValidateConfig(ctx context.Context, req resou
 		return
 	}
 
+	// At validate time (module/variable-driven config) a value can be unknown,
+	// not null; treating unknown as "set" wrongly trips the exactly-one check.
+	if data.RetentionDays.IsUnknown() || data.RetentionYears.IsUnknown() {
+		return
+	}
+
 	daysSet := !data.RetentionDays.IsNull()
 	yearsSet := !data.RetentionYears.IsNull()
 	switch {
