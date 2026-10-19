@@ -24,6 +24,10 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - Acceptance coverage for previously untested lifecycle paths: multiple `scality_bucket_lifecycle` rules in a non-sorted order (round-trip in configured order) and `expiration_date` (round-trips verbatim) — both confirmed stable against the API. (#90)
 - Automatic retry with exponential backoff and jitter for transient failures on S3 and IAM/account requests. Only requests the server provably did not process are retried — network errors, throttling (HTTP 429/503), and the retryable 409 conflict codes (`OperationAborted`, `ConcurrentModification`) — so a non-idempotent create is never duplicated (HTTP 500 is not retried). Retries respect context cancellation. (#93)
 
+### Changed
+- `CONTRIBUTING.md` and the pull-request template now document the resource lifecycle as an enforced gate: every resource must run through `acctest.LifecycleTest` (round-trip, idempotency, import-verify) and be tested with unknown, null, and empty inputs, out-of-band deletion, and — for shared-record resources — parallel apply; plus a "verify server behavior, don't assume it" rule. Codifies the lessons from the v1.1.2–v1.1.5 bug-fix work. (#101)
+- Added unknown-value `ValidateConfig` unit tests for `scality_bucket`, `scality_bucket_encryption`, and `scality_account`, so the "validators must tolerate unknown inputs" rule is enforced for every validator rather than asserted. (#105)
+
 ## [1.1.4] - 2026-10-16
 
 ### Fixed
