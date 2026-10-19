@@ -120,3 +120,33 @@ Run against every new or changed resource:
 - [ ] No one-way / destructive state transitions (Suspended-not-Unversioned,
       replace-on-mutable-field) are introduced.
 - [ ] Co-dependent attributes fail at plan via `ValidateConfig`, not mid-apply.
+
+### The LifecycleTest gate
+
+Every resource's acceptance tests must run through `acctest.LifecycleTest`, which
+bundles the checks the contract above depends on. A resource is not done until it
+passes all of them. Each item is here because its absence shipped a bug — write
+tests that try to *falsify* the contract, not confirm it:
+
+- **Round-trip + idempotency** — apply, then a second plan is empty and a second
+  apply is a no-op. (empty-map drifting to null; versioning drift)
+- **Import-verify** — `ImportStateVerify` reconstructs state purely from the API.
+- **Unknown inputs** — validate and plan a config whose blocks come from a
+  `dynamic` block or variables; nothing may error on an unknown value. (the
+  `terraform validate` regression)
+- **Every attribute as null, empty, and set** — an empty collection (`{}` / `[]`)
+  must survive apply→read unchanged, distinct from null. (bucket tags)
+- **Out-of-band deletion** — delete the object, and its parent, via the API; the
+  next plan recreates it instead of erroring. (IAM parent deletion)
+- **Parallel apply** for resources sharing a backend record — create or replace
+  several in one apply at default parallelism and read each back. (the bucket
+  metadata read-modify-write race)
+
+### Verify server behavior, don't assume it
+
+Before relying on how the API round-trips a value — ordering, casing, empty vs.
+absent, canonicalization, replica consistency, concurrency — prove it with a
+throwaway gated probe against a real cluster, then delete the probe. Several bugs
+came from assuming AWS-identical S3/IAM semantics the platform does not have.
+When fixing a bug, first write the probe or test that reproduces it and confirm
+it fails on the current code; only then write the fix.
