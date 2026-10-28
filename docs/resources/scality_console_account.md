@@ -43,8 +43,8 @@ output "s3_credentials" {
 | `account_name` | String | Yes | Account name. Forces replacement. |
 | `email` | String | Yes | Account email. Forces replacement. |
 | `quota` | Int | No | Max bytes storable. `0` = unlimited. Forces replacement. |
-| `generate_random_password` | Bool | No | Generate a random Console password. Default `false`. Forces replacement. |
-| `password_length` | Int | No | Password length. Minimum and default is 16. Forces replacement. |
+| `generate_random_password` | Bool | No | Generate a random Console password. Default `false`. Forces replacement, except when previously unset (e.g. after import), where it is recorded without generating a password. |
+| `password_length` | Int | No | Password length. Minimum and default is 16. Forces replacement, except when previously unset. |
 
 ## Attributes Exported
 
@@ -62,7 +62,7 @@ output "s3_credentials" {
 tofu import scality_console_account.app my-account-name
 ```
 
-After import, credentials and password will be unknown.
+Import requires the provider's IAM admin credentials (`endpoint`, `access_key`, `secret_key`) to read the account's email and quota. After import, credentials and password will be unknown.
 
 ## Prerequisites
 

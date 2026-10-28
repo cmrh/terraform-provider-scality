@@ -90,9 +90,11 @@ func (r *AccountResource) Schema(ctx context.Context, req resource.SchemaRequest
 				},
 			},
 			"external_account_id": schema.StringAttribute{
-				MarkdownDescription: "External account ID for integration with other systems",
+				MarkdownDescription: "External account ID for integration with other systems. Vault uses it as the account ID; defaults to the generated account ID when unset. Changing this replaces the account.",
 				Optional:            true,
+				Computed:            true,
 				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -200,6 +202,9 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 	if data.QuotaMax.IsNull() || data.QuotaMax.IsUnknown() {
 		data.QuotaMax = types.Int64Value(account.Account.Data.QuotaMax)
 	}
+	if data.ExternalAccountID.IsNull() || data.ExternalAccountID.IsUnknown() {
+		data.ExternalAccountID = types.StringValue(account.Account.Data.ID)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 
@@ -280,6 +285,10 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// that changes quota_max reconciles state to config).
 	if data.QuotaMax.IsNull() || data.QuotaMax.IsUnknown() {
 		data.QuotaMax = types.Int64Value(account.QuotaMax)
+	}
+	// GetAccount has no external-ID field; Vault uses the external ID as the account ID.
+	if data.ExternalAccountID.IsNull() || data.ExternalAccountID.IsUnknown() {
+		data.ExternalAccountID = types.StringValue(account.ID)
 	}
 	// The server lowercases the email; keep the configured casing when it only
 	// differs by case, so a mixed-case email does not force a perpetual replace.

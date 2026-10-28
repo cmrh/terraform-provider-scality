@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -167,6 +168,41 @@ resource "scality_account" "test" {
 					resource.TestCheckResourceAttr(resourceName, "custom_attributes.env", "staging"),
 					resource.TestCheckResourceAttr(resourceName, "custom_attributes.region", "us-east-1"),
 				),
+			},
+		},
+	})
+}
+
+// TestAccAccount_externalIDImport guards #109: Vault uses the external ID as the
+// account ID, so importing with external_account_id configured must plan clean.
+func TestAccAccount_externalIDImport(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resourceName := "scality_account.test"
+	externalID := fmt.Sprintf("%012d", time.Now().UnixNano()%1e12)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_account"),
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_account" "test" {
+  name                = %[1]q
+  email_address       = "%[1]s@test.local"
+  external_account_id = %[2]q
+}
+`, name, externalID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "external_account_id", externalID),
+					resource.TestCheckResourceAttr(resourceName, "id", externalID),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFromAttr(resourceName, "name"),
 			},
 		},
 	})
