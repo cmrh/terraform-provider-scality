@@ -299,6 +299,57 @@ resource "scality_bucket" "test" {
 					resource.TestCheckResourceAttr("scality_bucket.test", "tags.Team", "platform"),
 				),
 			},
+			{ // #108: import must record tags so the configured tags plan clean
+				ResourceName:      "scality_bucket.test",
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFunc("scality_bucket.test", "bucket"),
+			},
+		},
+	})
+}
+
+func testAccBucketObjectLockConfig(name, versioning string) string {
+	return testAccBucketBase(name) + fmt.Sprintf(`
+resource "scality_bucket" "test" {
+  account_access_key  = scality_user_access_key.test.access_key_id
+  account_secret_key  = scality_user_access_key.test.secret_access_key
+  bucket              = "%[1]s-bucket"
+  object_lock_enabled = true
+  %[2]s
+  depends_on          = [scality_user_policy.test]
+}
+`, name, versioning)
+}
+
+// TestAccBucket_objectLockImport guards #108: importing an Object Lock bucket
+// must not plan a replacement, and versioning = true on it must apply cleanly
+// (Object Lock already enables versioning and rejects PutBucketVersioning).
+func TestAccBucket_objectLockImport(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket"),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccBucketObjectLockConfig(name, ""),
+				Check:  checkBucketVersioningAPI("Enabled"),
+			},
+			{ // add versioning = true to a Terraform-managed Object Lock bucket
+				Config: testAccBucketObjectLockConfig(name, "versioning = true"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket.test", "versioning", "true"),
+					checkBucketVersioningAPI("Enabled"),
+				),
+			},
+			{ // import with both attributes configured -> no-op plan
+				ResourceName:      "scality_bucket.test",
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFunc("scality_bucket.test", "bucket"),
+			},
 		},
 	})
 }
