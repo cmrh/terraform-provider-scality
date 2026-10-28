@@ -61,7 +61,11 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				MarkdownDescription: "Enable Object Lock on the bucket. Can only be set at creation time.",
 				Optional:            true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
+					boolplanmodifier.RequiresReplaceIf(
+						objectLockRequiresReplace,
+						"Changing Object Lock requires replacing the bucket.",
+						"Changing Object Lock requires replacing the bucket.",
+					),
 				},
 			},
 			"versioning": schema.BoolAttribute{
@@ -75,6 +79,18 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			},
 		},
 	}
+}
+
+// importedPrivateKey marks state written by ImportState until the first Read populates it.
+const importedPrivateKey = "imported"
+
+// objectLockRequiresReplace treats null as false, so null <-> false never replaces the bucket.
+func objectLockRequiresReplace(ctx context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
+	if req.PlanValue.IsUnknown() {
+		resp.RequiresReplace = true
+		return
+	}
+	resp.RequiresReplace = req.PlanValue.ValueBool() != req.StateValue.ValueBool()
 }
 
 func (r *BucketResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -205,6 +221,21 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
+	imported, diags := req.Private.GetKey(ctx, importedPrivateKey)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if imported != nil {
+		if err := readImported(ctx, c, ak, sk, bucket, &data); err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read imported bucket: %s", err))
+			return
+		}
+		resp.Diagnostics.Append(resp.Private.SetKey(ctx, importedPrivateKey, nil)...)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+		return
+	}
+
 	if !data.Versioning.IsNull() {
 		status, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
 		if err != nil {
@@ -248,6 +279,39 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
+// readImported records only settings that are on server-side; anything off stays
+// null, so a config that omits it plans clean.
+func readImported(ctx context.Context, c *client.S3Client, ak, sk, bucket string, data *BucketResourceModel) error {
+	lock, err := c.GetObjectLockConfiguration(ctx, ak, sk, bucket)
+	if err != nil {
+		return err
+	}
+	if lock != nil && lock.Enabled {
+		data.ObjectLockEnabled = types.BoolValue(true)
+	}
+
+	status, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
+	if err != nil {
+		return err
+	}
+	if status == "Enabled" {
+		data.Versioning = types.BoolValue(true)
+	}
+
+	tags, err := c.GetBucketTagging(ctx, ak, sk, bucket)
+	if err != nil {
+		return err
+	}
+	if len(tags) > 0 {
+		mapVal, diags := types.MapValueFrom(ctx, types.StringType, tags)
+		if diags.HasError() {
+			return fmt.Errorf("converting tags: %v", diags.Errors())
+		}
+		data.Tags = mapVal
+	}
+	return nil
+}
+
 func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan, state BucketResourceModel
 
@@ -264,27 +328,25 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 	bucket := plan.Bucket.ValueString()
 
-	if !plan.Versioning.Equal(state.Versioning) {
+	// Unset = stop managing versioning; leave the bucket's state untouched.
+	if !plan.Versioning.Equal(state.Versioning) && !plan.Versioning.IsNull() {
+		current, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket versioning: %s", err))
+			return
+		}
 		switch {
-		case plan.Versioning.IsNull():
-			// Unset = stop managing versioning; leave the bucket's state untouched.
-		case plan.Versioning.ValueBool():
+		case plan.Versioning.ValueBool() && current != "Enabled":
+			// Skip when already Enabled: Object Lock buckets reject any versioning change.
 			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Enabled"); err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to enable bucket versioning: %s", err))
 				return
 			}
-		default:
-			// Explicit false: suspend only a currently-Enabled bucket; never touch an Unversioned (or Object Lock) one.
-			current, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
-			if err != nil {
-				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket versioning: %s", err))
+		case !plan.Versioning.ValueBool() && current == "Enabled":
+			// Explicit false: suspend only a currently-Enabled bucket; never touch an Unversioned one.
+			if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Suspended"); err != nil {
+				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to suspend bucket versioning: %s", err))
 				return
-			}
-			if current == "Enabled" {
-				if err := c.PutBucketVersioning(ctx, ak, sk, bucket, "Suspended"); err != nil {
-					resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to suspend bucket versioning: %s", err))
-					return
-				}
 			}
 		}
 	}
@@ -347,6 +409,8 @@ func (r *BucketResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 func (r *BucketResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resp.Diagnostics.Append(resp.Private.SetKey(ctx, importedPrivateKey, []byte("true"))...)
+
 	if ak, sk, ok := client.ImportAccountCreds(); ok {
 		if req.ID == "" {
 			resp.Diagnostics.AddError(
