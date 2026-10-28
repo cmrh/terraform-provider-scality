@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
@@ -82,6 +83,73 @@ resource "scality_console_account" "test" {
 				},
 				RefreshState:       true,
 				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+// TestAccConsoleAccount_import guards #109: import must record email and quota
+// (read from Vault) so the configured values don't plan a replacement.
+func TestAccConsoleAccount_import(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resourceName := "scality_console_account.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_console_account"),
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_console_account" "test" {
+  account_name = %[1]q
+  email        = "%[1]s@test.local"
+  quota        = 1073741824
+}
+`, name),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFromAttr(resourceName, "account_name"),
+			},
+		},
+	})
+}
+
+// TestAccConsoleAccount_importPasswordInputs guards #109: password inputs can't
+// be read back, so after import they plan an in-place update, not a replacement.
+func TestAccConsoleAccount_importPasswordInputs(t *testing.T) {
+	name := acctest.RandomName("acctest")
+	resourceName := "scality_console_account.test"
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_console_account"),
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_console_account" "test" {
+  account_name             = %[1]q
+  email                    = "%[1]s@test.local"
+  generate_random_password = true
+  password_length          = 20
+}
+`, name),
+			},
+			{
+				ResourceName:       resourceName,
+				ImportState:        true,
+				ImportStateKind:    resource.ImportBlockWithID,
+				ImportStateIdFunc:  acctest.ImportStateIdFromAttr(resourceName, "account_name"),
+				ExpectNonEmptyPlan: true,
+				ImportPlanChecks: resource.ImportPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
 			},
 		},
 	})
