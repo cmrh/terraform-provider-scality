@@ -39,7 +39,7 @@ output "s3_credentials" {
 | `name` | String | Yes | Account name. Forces replacement. |
 | `email_address` | String | Yes | Account email. Forces replacement. |
 | `quota_max` | Int | No | Max bytes storable. `0` = unlimited. Forces replacement. |
-| `external_account_id` | String | No | External ID for integration with other systems. Forces replacement. |
+| `external_account_id` | String | No | External ID for integration with other systems. Vault uses it as the account ID; defaults to the generated account ID when unset. Forces replacement. |
 | `custom_attributes` | Map(String) | No | Key-value metadata. Max 10 per account. Updated in-place. |
 
 ## Attributes Exported

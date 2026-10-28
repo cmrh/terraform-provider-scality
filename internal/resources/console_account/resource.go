@@ -28,6 +28,10 @@ const (
 	defaultPasswordLength = 16
 )
 
+// Password inputs can't be read back, so null state (import, or never set) is
+// not treated as a change that replaces the account.
+const creationOnlyReplaceDescription = "Changing this replaces the account, unless it was previously unset."
+
 type ConsoleAccountResource struct {
 	client    *client.ConsoleClient
 	iamClient *client.IAMClient
@@ -101,6 +105,7 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
 					int64planmodifier.RequiresReplace(),
 				},
 			},
@@ -108,7 +113,12 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 				MarkdownDescription: "Generate a random password for Console access (optional, default false)",
 				Optional:            true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
+					boolplanmodifier.RequiresReplaceIf(
+						func(ctx context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
+							resp.RequiresReplace = !req.StateValue.IsNull()
+						},
+						creationOnlyReplaceDescription, creationOnlyReplaceDescription,
+					),
 				},
 			},
 			"password_length": schema.Int64Attribute{
@@ -116,7 +126,12 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 				Optional:            true,
 				Validators:          validators.Int64AtLeast(16),
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					int64planmodifier.RequiresReplaceIf(
+						func(ctx context.Context, req planmodifier.Int64Request, resp *int64planmodifier.RequiresReplaceIfFuncResponse) {
+							resp.RequiresReplace = !req.StateValue.IsNull()
+						},
+						creationOnlyReplaceDescription, creationOnlyReplaceDescription,
+					),
 				},
 			},
 			"password": schema.StringAttribute{
@@ -266,16 +281,46 @@ func (r *ConsoleAccountResource) Read(ctx context.Context, req resource.ReadRequ
 			resp.State.RemoveResource(ctx)
 			return
 		}
+		// Fill only what import left null; the Console API has no read to refresh the rest.
+		if data.ID.IsNull() {
+			data.ID = types.StringValue(acct.Name)
+		}
+		if data.Email.IsNull() {
+			data.Email = types.StringValue(acct.EmailAddress)
+		}
+		if data.Quota.IsNull() || data.Quota.IsUnknown() {
+			data.Quota = types.Int64Value(acct.QuotaMax)
+		}
+		if data.CreatedAt.IsNull() {
+			data.CreatedAt = types.StringValue(acct.CreateDate)
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
+// Update is reached only when generate_random_password / password_length go from
+// unset to set (e.g. after import); everything else replaces the account.
 func (r *ConsoleAccountResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update Not Supported",
-		"All scality_console_account attributes require resource replacement. This is a provider bug if you see this error.",
+	var plan, state ConsoleAccountResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	plan.ID = state.ID
+	plan.Password = state.Password
+	plan.CreatedAt = state.CreatedAt
+	plan.AccessKey = state.AccessKey
+	plan.SecretKey = state.SecretKey
+
+	resp.Diagnostics.AddWarning(
+		"Creation-only settings recorded",
+		"generate_random_password and password_length take effect only when the account is created; no password was generated for this existing account.",
 	)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *ConsoleAccountResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -300,5 +345,13 @@ func (r *ConsoleAccountResource) Delete(ctx context.Context, req resource.Delete
 }
 
 func (r *ConsoleAccountResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Without Vault, Read can't fill email/quota and the next plan would replace the account.
+	if r.iamClient == nil || r.iamClient.AccessKey == "" {
+		resp.Diagnostics.AddError(
+			"Missing IAM Admin Credentials",
+			"Importing scality_console_account requires the provider's IAM admin credentials (endpoint, access_key, secret_key) to read the account's email and quota.",
+		)
+		return
+	}
 	resource.ImportStatePassthroughID(ctx, path.Root("account_name"), req, resp)
 }

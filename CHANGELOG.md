@@ -7,6 +7,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 ### Fixed
 - `scality_bucket` import now records Object Lock, versioning, and tags. Import left them null, so a config with `object_lock_enabled = true` planned a replacement of the bucket, and configured versioning or tags planned an in-place update. Only settings that are on server-side are recorded, so a config that omits them still plans clean. `object_lock_enabled` now treats unset and `false` as the same value, so switching between them no longer forces replacement. (#108)
 - `scality_bucket` with `object_lock_enabled = true` no longer fails to apply `versioning = true` with `InvalidBucketState`. Object Lock already enables versioning and the server rejects any versioning change; Update now skips the call when versioning is already enabled. (#108)
+- `scality_account` import with `external_account_id` configured no longer plans a replacement. Vault uses the external ID as the account ID and returns no separate field, so import left it null. `external_account_id` is now computed from the account ID when unset; existing states pick it up on refresh with no plan change. (#109)
+- `scality_console_account` import no longer plans a replacement of the account. Import recorded only the name, so the required `email` and any configured `quota` forced replacement. Read now fills them from the Vault IAM API, and import requires the provider's IAM admin credentials. `generate_random_password` and `password_length` can't be read back; setting them when previously unset is now recorded in place (with a warning that no password was generated) instead of replacing the account. (#109)
 
 ## [1.1.6] - 2026-10-19
 
