@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/cmrh/terraform-provider-scality/internal/client"
+	"github.com/cmrh/terraform-provider-scality/internal/planmodifiers"
 	"github.com/cmrh/terraform-provider-scality/internal/validators"
 )
 
@@ -59,6 +60,9 @@ func (r *BucketPolicyResource) Schema(ctx context.Context, req resource.SchemaRe
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
 				CustomType:          jsontypes.NormalizedType{},
+				PlanModifiers: []planmodifier.String{
+					planmodifiers.SemanticJSON(),
+				},
 			},
 		},
 	}

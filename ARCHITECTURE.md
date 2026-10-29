@@ -57,6 +57,8 @@ internal/
 │   └── s3_replication.go       # Get/Put/DeleteBucketReplication
 ├── provider/
 │   └── provider.go             # Schema, Configure, Resources()
+├── planmodifiers/
+│   └── json.go                 # SemanticJSON: formatting-only JSON changes plan no diff
 ├── validators/
 │   └── validators.go           # Shared input validators (AccountName, BucketName, IAMName, etc.)
 └── resources/

@@ -164,6 +164,12 @@ EOT
 					resource.TestCheckResourceAttr(resourceName, "bucket", name+"-bucket"),
 				),
 			},
+			{ // #117: import must not plan a whitespace-only update of the document
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFunc(resourceName, "bucket"),
+			},
 		},
 	})
 }
