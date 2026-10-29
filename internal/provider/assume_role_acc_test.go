@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
@@ -23,6 +24,41 @@ import (
 // configured with assume_role — it cannot be created in the same config that
 // assumes it.
 func TestAccProviderAssumeRole_perAccountResources(t *testing.T) {
+	a := setupAssumeRole(t)
+	bucketName := acctest.RandomName("acctest-assumed")
+	userName := acctest.RandomName("acctest-assumed-user")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAssumeRoleConfig(a.assumerAK, a.assumerSK, a.roleArn, bucketName, userName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Both resources were created without explicit credentials —
+					// only possible via the assumed-role fallback.
+					resource.TestCheckResourceAttr("scality_bucket.assumed", "bucket", bucketName),
+					resource.TestCheckResourceAttr("scality_user.assumed", "username", userName),
+					resource.TestCheckResourceAttrSet("scality_user.assumed", "arn"),
+					// Credentials were omitted, so they stay null in state.
+					resource.TestCheckNoResourceAttr("scality_bucket.assumed", "account_access_key"),
+					resource.TestCheckNoResourceAttr("scality_user.assumed", "account_access_key"),
+				),
+			},
+		},
+	})
+}
+
+// assumeRoleSetup is an account with a role its IAM user can assume.
+type assumeRoleSetup struct {
+	accountAK, accountSK string // account root key
+	assumerAK, assumerSK string // key of the IAM user that assumes the role
+	roleArn              string
+}
+
+// setupAssumeRole creates the account, role and assuming user out of band:
+// the role must exist before the provider is configured to assume it.
+func setupAssumeRole(t *testing.T) assumeRoleSetup {
+	t.Helper()
 	// Out-of-band setup runs before resource.Test, so guard TF_ACC explicitly
 	// (resource.Test's own skip would come too late).
 	if os.Getenv("TF_ACC") == "" {
@@ -145,27 +181,11 @@ func TestAccProviderAssumeRole_perAccountResources(t *testing.T) {
 		}
 	})
 
-	bucketName := acctest.RandomName("acctest-assumed")
-	userName := acctest.RandomName("acctest-assumed-user")
-
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccAssumeRoleConfig(assumerAK, assumerSK, roleArn, bucketName, userName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Both resources were created without explicit credentials —
-					// only possible via the assumed-role fallback.
-					resource.TestCheckResourceAttr("scality_bucket.assumed", "bucket", bucketName),
-					resource.TestCheckResourceAttr("scality_user.assumed", "username", userName),
-					resource.TestCheckResourceAttrSet("scality_user.assumed", "arn"),
-					// Credentials were omitted, so they stay null in state.
-					resource.TestCheckNoResourceAttr("scality_bucket.assumed", "account_access_key"),
-					resource.TestCheckNoResourceAttr("scality_user.assumed", "account_access_key"),
-				),
-			},
-		},
-	})
+	return assumeRoleSetup{
+		accountAK: accountAK, accountSK: accountSK,
+		assumerAK: assumerAK, assumerSK: assumerSK,
+		roleArn: roleArn,
+	}
 }
 
 func testAccAssumeRoleConfig(accountAK, accountSK, roleArn, bucketName, userName string) string {
@@ -188,4 +208,48 @@ resource "scality_user" "assumed" {
   username = %q
 }
 `, accountAK, accountSK, roleArn, bucketName, userName)
+}
+
+// TestAccProviderAssumeRole_switchFromKeys guards #118: dropping a resource's
+// own keys in favor of the provider's assumed role updates it in place.
+func TestAccProviderAssumeRole_switchFromKeys(t *testing.T) {
+	a := setupAssumeRole(t)
+	userName := acctest.RandomName("acctest-switch-user")
+	config := func(keys string) string {
+		return fmt.Sprintf(`
+provider "scality" {
+  access_key           = %q
+  secret_key           = %q
+  insecure_skip_verify = true
+
+  assume_role {
+    role_arn = %q
+  }
+}
+
+resource "scality_user" "test" {
+  username = %q
+%s
+}
+`, a.assumerAK, a.assumerSK, a.roleArn, userName, keys)
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config(fmt.Sprintf("  account_access_key = %q\n  account_secret_key = %q", a.accountAK, a.accountSK)),
+				Check:  resource.TestCheckResourceAttr("scality_user.test", "account_access_key", a.accountAK),
+			},
+			{
+				Config: config(""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("scality_user.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.TestCheckNoResourceAttr("scality_user.test", "account_access_key"),
+			},
+		},
+	})
 }

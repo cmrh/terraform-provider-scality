@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -51,6 +52,8 @@ type IAMClient struct {
 	// signing path (doSignedRequest) — set when the credentials are STS
 	// assumed-role credentials. The admin/superadmin path never carries it.
 	SessionToken string
+	// callerAccounts caches CallerAccount results by access key; shared by clones.
+	callerAccounts *sync.Map
 }
 
 // NewIAMClient creates a new Scality IAM API client. Region defaults to awsRegion.
@@ -68,11 +71,12 @@ func NewIAMClient(endpoint, accessKey, secretKey string, insecureSkipVerify bool
 	}
 
 	return &IAMClient{
-		Endpoint:   endpoint,
-		AccessKey:  accessKey,
-		SecretKey:  secretKey,
-		Region:     awsRegion,
-		HTTPClient: httpClient,
+		Endpoint:       endpoint,
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
+		Region:         awsRegion,
+		HTTPClient:     httpClient,
+		callerAccounts: &sync.Map{},
 	}
 }
 
@@ -184,7 +188,12 @@ type iamErrorResponse struct {
 // Uses its own SigV4 signing that includes the port in the Host header, matching the
 // standard AWS IAM signing convention expected by the Scality Vault service.
 func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey string, params url.Values) ([]byte, error) {
-	params.Set("Version", apiVersion)
+	return c.doServiceRequest(ctx, awsService, apiVersion, accessKey, secretKey, params)
+}
+
+// doServiceRequest is doSignedRequest for any service sharing the endpoint (iam, sts).
+func (c *IAMClient) doServiceRequest(ctx context.Context, service, version, accessKey, secretKey string, params url.Values) ([]byte, error) {
+	params.Set("Version", version)
 
 	parsedURL, err := url.Parse(c.Endpoint)
 	if err != nil {
@@ -217,7 +226,7 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 		payloadHash,
 	}, "\n")
 
-	credentialScope := fmt.Sprintf("%s/%s/%s/%s", datestamp, c.Region, awsService, awsRequestType)
+	credentialScope := fmt.Sprintf("%s/%s/%s/%s", datestamp, c.Region, service, awsRequestType)
 	stringToSign := strings.Join([]string{
 		awsAlgorithm,
 		amzdate,
@@ -225,7 +234,7 @@ func (c *IAMClient) doSignedRequest(ctx context.Context, accessKey, secretKey st
 		sha256Hex([]byte(canonicalRequest)),
 	}, "\n")
 
-	signingKey := getSignatureKey(secretKey, datestamp, c.Region, awsService)
+	signingKey := getSignatureKey(secretKey, datestamp, c.Region, service)
 	signature := hex.EncodeToString(hmacSHA256(signingKey, stringToSign))
 
 	authHeader := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",

@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/cmrh/terraform-provider-scality/internal/accountguard"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
 	"github.com/cmrh/terraform-provider-scality/internal/validators"
 )
@@ -40,17 +41,11 @@ func (r *IAMGroupPolicyAttachmentResource) Schema(ctx context.Context, req resou
 				MarkdownDescription: "Access key of the account that owns this group and policy. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"account_secret_key": schema.StringAttribute{
 				MarkdownDescription: "Secret key of the account that owns this group and policy. Omit to use the provider's assumed-role credentials.",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"group_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM group to attach the policy to",
@@ -110,6 +105,7 @@ func (r *IAMGroupPolicyAttachmentResource) Create(ctx context.Context, req resou
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, nil, resp.Private)...)
 
 	tflog.Debug(ctx, "Attaching policy to group", map[string]any{
 		"group_name": data.GroupName.ValueString(),
@@ -136,6 +132,10 @@ func (r *IAMGroupPolicyAttachmentResource) Read(ctx context.Context, req resourc
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -167,10 +167,25 @@ func (r *IAMGroupPolicyAttachmentResource) Read(ctx context.Context, req resourc
 }
 
 func (r *IAMGroupPolicyAttachmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update Not Supported",
-		"All attributes on scality_iam_group_policy_attachment require replacement. This should not be called.",
-	)
+	var data IAMGroupPolicyAttachmentResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Only the account credentials update in place; every other attribute forces replacement.
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *IAMGroupPolicyAttachmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -184,6 +199,10 @@ func (r *IAMGroupPolicyAttachmentResource) Delete(ctx context.Context, req resou
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, nil)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

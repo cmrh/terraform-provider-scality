@@ -24,14 +24,14 @@ resource "scality_iam_role_policy_attachment" "replication" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | No | Access key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
-| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
 | `role_name` | String | Yes | Name of the IAM role to attach the policy to. Changing this replaces the resource. |
 | `policy_arn` | String | Yes | ARN of the IAM managed policy to attach. Changing this replaces the resource. |
 
 ## Notes
 
-- All attributes force resource replacement. To change the attached policy, Terraform will detach the old policy and attach the new one.
+- Changing `role_name` or `policy_arn` replaces the attachment: Terraform detaches the old policy and attaches the new one.
 - If the attachment is removed outside of Terraform, the resource will be removed from state on the next plan/apply.
 
 ## Import

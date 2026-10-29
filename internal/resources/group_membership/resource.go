@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/cmrh/terraform-provider-scality/internal/accountguard"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
 )
 
@@ -40,17 +41,11 @@ func (r *GroupMembershipResource) Schema(ctx context.Context, req resource.Schem
 				MarkdownDescription: "Access key of the account that owns this group. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"account_secret_key": schema.StringAttribute{
 				MarkdownDescription: "Secret key of the account that owns this group. Omit to use the provider's assumed-role credentials.",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"group_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM group",
@@ -112,6 +107,7 @@ func (r *GroupMembershipResource) Create(ctx context.Context, req resource.Creat
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, nil, resp.Private)...)
 	groupName := data.GroupName.ValueString()
 
 	tflog.Debug(ctx, "Adding users to group", map[string]interface{}{
@@ -141,6 +137,10 @@ func (r *GroupMembershipResource) Read(ctx context.Context, req resource.ReadReq
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -189,6 +189,10 @@ func (r *GroupMembershipResource) Update(ctx context.Context, req resource.Updat
 	c, ak, sk, err := r.clients.ResolveIAM(plan.AccountAccessKey.ValueString(), plan.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	groupName := plan.GroupName.ValueString()
@@ -243,6 +247,10 @@ func (r *GroupMembershipResource) Delete(ctx context.Context, req resource.Delet
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, nil)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	groupName := data.GroupName.ValueString()

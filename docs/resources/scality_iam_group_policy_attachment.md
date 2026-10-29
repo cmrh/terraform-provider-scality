@@ -24,14 +24,14 @@ resource "scality_iam_group_policy_attachment" "readers" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | No | Access key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
-| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
 | `group_name` | String | Yes | Name of the IAM group to attach the policy to. Changing this replaces the resource. |
 | `policy_arn` | String | Yes | ARN of the IAM managed policy to attach. Changing this replaces the resource. |
 
 ## Notes
 
-- All attributes force resource replacement. To change the attached policy, Terraform will detach the old policy and attach the new one.
+- Changing `group_name` or `policy_arn` replaces the attachment: Terraform detaches the old policy and attaches the new one.
 - If the attachment or its group is removed outside of Terraform, the resource is removed from state on the next plan/apply.
 - A group with attached policies cannot be deleted. Referencing the group from this resource makes Terraform detach the policy before deleting the group.
 

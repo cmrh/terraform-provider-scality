@@ -33,8 +33,8 @@ resource "scality_user_policy" "s3_access" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | No | Access key of the owning account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
-| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
 | `username` | String | Yes | User to attach the policy to. Forces replacement. |
 | `policy_name` | String | Yes | Name of the policy. Forces replacement. |
 | `policy_document` | String | Yes | JSON policy document. Use `jsonencode()` for readability. |

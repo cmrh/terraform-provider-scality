@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/cmrh/terraform-provider-scality/internal/accountguard"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
 	"github.com/cmrh/terraform-provider-scality/internal/planmodifiers"
 	"github.com/cmrh/terraform-provider-scality/internal/validators"
@@ -44,17 +45,11 @@ func (r *IAMRoleResource) Schema(ctx context.Context, req resource.SchemaRequest
 				MarkdownDescription: "Access key of the account that owns this role. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"account_secret_key": schema.StringAttribute{
 				MarkdownDescription: "Secret key of the account that owns this role. Omit to use the provider's assumed-role credentials.",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"role_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM role",
@@ -122,6 +117,7 @@ func (r *IAMRoleResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, nil, resp.Private)...)
 
 	tflog.Debug(ctx, "Creating IAM role", map[string]any{
 		"role_name": data.RoleName.ValueString(),
@@ -151,6 +147,10 @@ func (r *IAMRoleResource) Read(ctx context.Context, req resource.ReadRequest, re
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	role, err := c.GetRole(ctx, ak, sk, data.RoleName.ValueString())
 	if err != nil {
@@ -177,10 +177,25 @@ func (r *IAMRoleResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *IAMRoleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update Not Supported",
-		"All attributes on scality_iam_role require replacement. This should not be called.",
-	)
+	var data IAMRoleResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Only the account credentials update in place; every other attribute forces replacement.
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *IAMRoleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -194,6 +209,10 @@ func (r *IAMRoleResource) Delete(ctx context.Context, req resource.DeleteRequest
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, nil)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/cmrh/terraform-provider-scality/internal/accountguard"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
 )
 
@@ -48,17 +49,11 @@ func (r *AccountAccessKeyResource) Schema(ctx context.Context, req resource.Sche
 				MarkdownDescription: "Access key of the account to create the key for. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"account_secret_key": schema.StringAttribute{
 				MarkdownDescription: "Secret key of the account to create the key for. Omit to use the provider's assumed-role credentials.",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"access_key": schema.StringAttribute{
 				MarkdownDescription: "S3 API access key (only available after creation)",
@@ -132,6 +127,7 @@ func (r *AccountAccessKeyResource) Create(ctx context.Context, req resource.Crea
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, nil, resp.Private)...)
 
 	tflog.Debug(ctx, "Generating root access key for account")
 
@@ -165,6 +161,10 @@ func (r *AccountAccessKeyResource) Read(ctx context.Context, req resource.ReadRe
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	keys, err := c.ListRootAccessKeys(ctx, ak, sk)
 	if err != nil {
@@ -193,10 +193,25 @@ func (r *AccountAccessKeyResource) Read(ctx context.Context, req resource.ReadRe
 }
 
 func (r *AccountAccessKeyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Update Not Supported",
-		"Access keys are immutable. All changes require resource replacement.",
-	)
+	var data AccountAccessKeyResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Only the account credentials update in place; every other attribute forces replacement.
+	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *AccountAccessKeyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -210,6 +225,10 @@ func (r *AccountAccessKeyResource) Delete(ctx context.Context, req resource.Dele
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, nil)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
