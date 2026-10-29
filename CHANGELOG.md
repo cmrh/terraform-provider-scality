@@ -10,6 +10,7 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - `scality_account` import with `external_account_id` configured no longer plans a replacement. Vault uses the external ID as the account ID and returns no separate field, so import left it null. `external_account_id` is now computed from the account ID when unset; existing states pick it up on refresh with no plan change. (#109)
 - `scality_console_account` import no longer plans a replacement of the account. Import recorded only the name, so the required `email` and any configured `quota` forced replacement. Read now fills them from the Vault IAM API, and import requires the provider's IAM admin credentials. `generate_random_password` and `password_length` can't be read back; setting them when previously unset is now recorded in place (with a warning that no password was generated) instead of replacing the account. (#109)
 - `scality_console_account` docs no longer say that every argument forces replacement; they now note the exception for the password inputs added in #109. (#109)
+- `scality_console_account` in-place updates no longer plan `created_at`, `password`, `access_key` and `secret_key` as known after apply. Update never changes them; they now keep their state values in the plan. (#113)
 - The provider's debug-mode address is now `registry.terraform.io/cmrh/scality`, matching the published namespace. It was still `scality/scality`, so `-debug` reattach did not match configs using `source = "cmrh/scality"`.
 
 ## [1.1.6] - 2026-10-19

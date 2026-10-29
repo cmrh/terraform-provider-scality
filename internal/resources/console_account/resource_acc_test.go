@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
@@ -37,6 +39,32 @@ resource "scality_console_account" "test" {
 					resource.TestCheckResourceAttrSet(resourceName, "secret_key"),
 					resource.TestCheckResourceAttrSet(resourceName, "password"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
+				),
+			},
+			{
+				// Replacement plans fresh computed values, not the old account's.
+				Config: acctest.ProviderBlock() + fmt.Sprintf(`
+resource "scality_console_account" "test" {
+  account_name             = %[1]q
+  email                    = "%[1]s@test.local"
+  quota                    = 1073741824
+  generate_random_password = true
+}
+`, name),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionDestroyBeforeCreate),
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("created_at")),
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("password")),
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("access_key")),
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("secret_key")),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "quota", "1073741824"),
+					resource.TestCheckResourceAttrSet(resourceName, "access_key"),
+					resource.TestCheckResourceAttrSet(resourceName, "secret_key"),
+					resource.TestCheckResourceAttrSet(resourceName, "password"),
 				),
 			},
 		},
@@ -120,6 +148,7 @@ resource "scality_console_account" "test" {
 
 // TestAccConsoleAccount_importPasswordInputs guards #109: password inputs can't
 // be read back, so after import they plan an in-place update, not a replacement.
+// Computed values keep their state values in that plan.
 func TestAccConsoleAccount_importPasswordInputs(t *testing.T) {
 	name := acctest.RandomName("acctest")
 	resourceName := "scality_console_account.test"
@@ -148,6 +177,10 @@ resource "scality_console_account" "test" {
 				ImportPlanChecks: resource.ImportPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_at"), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, tfjsonpath.New("password"), knownvalue.Null()),
+						plancheck.ExpectKnownValue(resourceName, tfjsonpath.New("access_key"), knownvalue.Null()),
+						plancheck.ExpectKnownValue(resourceName, tfjsonpath.New("secret_key"), knownvalue.Null()),
 					},
 				},
 			},

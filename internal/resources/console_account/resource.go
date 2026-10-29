@@ -138,20 +138,32 @@ func (r *ConsoleAccountResource) Schema(ctx context.Context, req resource.Schema
 				MarkdownDescription: "Generated Console password (only available if generate_random_password is true)",
 				Computed:            true,
 				Sensitive:           true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created_at": schema.StringAttribute{
 				MarkdownDescription: "Account creation timestamp",
 				Computed:            true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"access_key": schema.StringAttribute{
 				MarkdownDescription: "S3 API access key (persistent credentials, generated automatically)",
 				Computed:            true,
 				Sensitive:           true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"secret_key": schema.StringAttribute{
 				MarkdownDescription: "S3 API secret key (persistent credentials, generated automatically)",
 				Computed:            true,
 				Sensitive:           true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
