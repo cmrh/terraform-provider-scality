@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
 	"github.com/cmrh/terraform-provider-scality/internal/acctest"
 )
@@ -119,6 +120,18 @@ func TestAccIAMPolicy_jsonWhitespace(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "arn"),
 				),
+			},
+			{ // #117: reformatting the configured JSON plans no change
+				Config: testAccIAMPolicyConfig(name, `{"Version":"2012-10-17","Statement":[{"Action":"s3:*","Effect":"Allow","Resource":"*"}]}`),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+			{ // #117: import must not plan a whitespace-only update of the document
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFunc(resourceName, "arn"),
 			},
 		},
 	})

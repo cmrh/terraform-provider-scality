@@ -104,6 +104,12 @@ func TestAccUserPolicy_jsonWhitespace(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "policy_name", name+"-policy"),
 				),
 			},
+			{ // #117: import must not plan a whitespace-only update of the document
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFunc(resourceName, "username", "policy_name"),
+			},
 		},
 	})
 }

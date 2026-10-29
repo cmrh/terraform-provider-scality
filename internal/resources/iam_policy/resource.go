@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/cmrh/terraform-provider-scality/internal/client"
+	"github.com/cmrh/terraform-provider-scality/internal/planmodifiers"
 	"github.com/cmrh/terraform-provider-scality/internal/validators"
 )
 
@@ -66,6 +67,9 @@ func (r *IAMPolicyResource) Schema(ctx context.Context, req resource.SchemaReque
 				MarkdownDescription: "JSON policy document",
 				Required:            true,
 				CustomType:          jsontypes.NormalizedType{},
+				PlanModifiers: []planmodifier.String{
+					planmodifiers.SemanticJSON(),
+				},
 			},
 			"arn": schema.StringAttribute{
 				MarkdownDescription: "ARN of the managed policy",

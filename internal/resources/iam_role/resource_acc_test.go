@@ -103,6 +103,12 @@ EOT
 					resource.TestCheckResourceAttr(resourceName, "role_name", name+"-role"),
 				),
 			},
+			{ // #117: import must not plan a whitespace-only update of the document
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateKind:   resource.ImportBlockWithID,
+				ImportStateIdFunc: acctest.ImportStateIdFunc(resourceName, "role_name"),
+			},
 		},
 	})
 }
