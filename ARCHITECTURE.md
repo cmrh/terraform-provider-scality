@@ -57,6 +57,8 @@ internal/
 │   └── s3_replication.go       # Get/Put/DeleteBucketReplication
 ├── provider/
 │   └── provider.go             # Schema, Configure, Resources()
+├── accountguard/
+│   └── accountguard.go         # Verify: refuse credentials of a different account (private state)
 ├── planmodifiers/
 │   └── json.go                 # SemanticJSON: formatting-only JSON changes plan no diff
 ├── validators/

@@ -106,8 +106,8 @@ Vault rejects it with `MalformedPolicyDocument`.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | No | Access key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
-| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
 | `role_name` | String | Yes | Name of the IAM role. Changing this replaces the resource. |
 | `assume_role_policy` | String | Yes | JSON trust policy document that grants entities permission to assume the role. Changing this replaces the resource. |
 
@@ -119,7 +119,7 @@ Vault rejects it with `MalformedPolicyDocument`.
 
 ## Notes
 
-- All attributes force resource replacement. Scality's `UpdateRole` API only supports `MaxSessionDuration`, not trust policy changes, so any change requires a destroy-and-recreate.
+- Changing `role_name` or `assume_role_policy` forces resource replacement. Scality's `UpdateRole` API only supports `MaxSessionDuration`, not trust policy changes.
 - Attached policies must be detached before the role can be deleted. Terraform handles this automatically when `scality_iam_role_policy_attachment` resources reference this role.
 
 ## Import

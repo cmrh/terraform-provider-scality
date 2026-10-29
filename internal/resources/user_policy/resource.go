@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/cmrh/terraform-provider-scality/internal/accountguard"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
 	"github.com/cmrh/terraform-provider-scality/internal/planmodifiers"
 	"github.com/cmrh/terraform-provider-scality/internal/validators"
@@ -42,17 +43,11 @@ func (r *UserPolicyResource) Schema(ctx context.Context, req resource.SchemaRequ
 				MarkdownDescription: "Access key of the account that owns this user. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"account_secret_key": schema.StringAttribute{
 				MarkdownDescription: "Secret key of the account that owns this user. Omit to use the provider's assumed-role credentials.",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"username": schema.StringAttribute{
 				MarkdownDescription: "Name of the IAM user this policy is attached to",
@@ -125,6 +120,7 @@ func (r *UserPolicyResource) Create(ctx context.Context, req resource.CreateRequ
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, nil, resp.Private)...)
 
 	err = c.PutUserPolicy(ctx, ak, sk, data.Username.ValueString(), data.PolicyName.ValueString(), data.PolicyDocument.ValueString())
 	if err != nil {
@@ -146,6 +142,10 @@ func (r *UserPolicyResource) Read(ctx context.Context, req resource.ReadRequest,
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -183,6 +183,10 @@ func (r *UserPolicyResource) Update(ctx context.Context, req resource.UpdateRequ
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	err = c.PutUserPolicy(ctx, ak, sk, data.Username.ValueString(), data.PolicyName.ValueString(), data.PolicyDocument.ValueString())
 	if err != nil {
@@ -209,6 +213,10 @@ func (r *UserPolicyResource) Delete(ctx context.Context, req resource.DeleteRequ
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, nil)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 

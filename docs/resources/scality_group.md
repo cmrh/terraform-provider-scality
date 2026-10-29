@@ -27,8 +27,8 @@ output "group_arn" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | No | Access key of the owning account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
-| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Forces replacement. Omit to use the provider's assume_role credentials. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
 | `group_name` | String | Yes | Name of the group. Forces replacement. |
 
 ## Attributes Exported

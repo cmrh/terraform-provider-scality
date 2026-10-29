@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
+	"github.com/cmrh/terraform-provider-scality/internal/accountguard"
 	"github.com/cmrh/terraform-provider-scality/internal/client"
 	"github.com/cmrh/terraform-provider-scality/internal/planmodifiers"
 	"github.com/cmrh/terraform-provider-scality/internal/validators"
@@ -43,17 +44,11 @@ func (r *IAMPolicyResource) Schema(ctx context.Context, req resource.SchemaReque
 				MarkdownDescription: "Access key of the account that owns this policy. Omit to use the provider's assumed-role credentials (see the provider `assume_role` block).",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"account_secret_key": schema.StringAttribute{
 				MarkdownDescription: "Secret key of the account that owns this policy. Omit to use the provider's assumed-role credentials.",
 				Optional:            true,
 				Sensitive:           true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"policy_name": schema.StringAttribute{
 				MarkdownDescription: "Name of the managed policy",
@@ -120,6 +115,7 @@ func (r *IAMPolicyResource) Create(ctx context.Context, req resource.CreateReque
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, nil, resp.Private)...)
 
 	tflog.Debug(ctx, "Creating IAM managed policy", map[string]any{
 		"policy_name": data.PolicyName.ValueString(),
@@ -147,6 +143,10 @@ func (r *IAMPolicyResource) Read(ctx context.Context, req resource.ReadRequest, 
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	arn := data.Arn.ValueString()
@@ -177,9 +177,10 @@ func (r *IAMPolicyResource) Read(ctx context.Context, req resource.ReadRequest, 
 }
 
 func (r *IAMPolicyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data IAMPolicyResourceModel
+	var data, state IAMPolicyResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -189,16 +190,28 @@ func (r *IAMPolicyResource) Update(ctx context.Context, req resource.UpdateReque
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
 		return
 	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, resp.Private)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	arn := data.Arn.ValueString()
 
-	tflog.Debug(ctx, "Updating IAM managed policy via CreatePolicyVersion", map[string]any{
-		"policy_name": data.PolicyName.ValueString(),
-	})
-
-	err = c.CreateManagedPolicyVersion(ctx, ak, sk, arn, data.PolicyDocument.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update IAM policy: %s", err))
+	// A new version only for a changed document, not e.g. a credential change.
+	unchanged, diags := data.PolicyDocument.StringSemanticEquals(ctx, state.PolicyDocument)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
+	}
+	if !unchanged {
+		tflog.Debug(ctx, "Updating IAM managed policy via CreatePolicyVersion", map[string]any{
+			"policy_name": data.PolicyName.ValueString(),
+		})
+
+		err = c.CreateManagedPolicyVersion(ctx, ak, sk, arn, data.PolicyDocument.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update IAM policy: %s", err))
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -215,6 +228,10 @@ func (r *IAMPolicyResource) Delete(ctx context.Context, req resource.DeleteReque
 	c, ak, sk, err := r.clients.ResolveIAM(data.AccountAccessKey.ValueString(), data.AccountSecretKey.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Missing Credentials", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(accountguard.Verify(ctx, c, ak, sk, req.Private, nil)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	arn := data.Arn.ValueString()

@@ -208,6 +208,12 @@ resource "scality_bucket" "data" {
 
 The initial credentials from account creation may be rotated externally. The second key pair created via `scality_account_access_key` gives Terraform a stable credential that external processes will not touch.
 
+## Changing Credentials
+
+Account-tier resources can switch to another key of the same account, or between their own keys and `assume_role`, with an in-place update. The provider records each resource's account (via STS `GetCallerIdentity`) and refuses credentials that act in a different account.
+
+To rotate a key, keep the old key valid until the apply that switches to the new one completes: refresh reads each resource with the credentials already in state.
+
 ## Credential Dependencies
 
 When using IAM user credentials for resources like buckets, encryption, or replication, always declare a `depends_on` pointing at the user's access policy. This ensures Terraform destroys resources in the correct order -- removing buckets and other resources before the policy that grants permission to manage them.

@@ -33,8 +33,8 @@ resource "scality_iam_policy" "replication" {
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `account_access_key` | String | No | Access key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
-| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Changing this replaces the resource. Omit to use the provider's assume_role credentials. |
+| `account_access_key` | String | No | Access key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
+| `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Switching to another key of the same account updates in place. Omit to use the provider's assume_role credentials. |
 | `policy_name` | String | Yes | Name of the IAM policy. Changing this replaces the resource. |
 | `policy_document` | String | Yes | JSON policy document. Can be updated in-place. |
 
@@ -47,7 +47,7 @@ resource "scality_iam_policy" "replication" {
 ## Notes
 
 - Updating `policy_document` creates a new policy version via `CreatePolicyVersion`. Scality supports a maximum of 5 policy versions.
-- Changing `policy_name` or account credentials forces resource replacement.
+- Changing `policy_name` forces resource replacement.
 - The policy must be detached from all roles and groups before it can be deleted. Use `scality_iam_role_policy_attachment` and `scality_iam_group_policy_attachment` to manage attachments declaratively.
 
 ## Import
