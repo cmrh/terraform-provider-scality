@@ -24,6 +24,7 @@ import (
 	consoleaccount "github.com/cmrh/terraform-provider-scality/internal/resources/console_account"
 	"github.com/cmrh/terraform-provider-scality/internal/resources/group"
 	groupmembership "github.com/cmrh/terraform-provider-scality/internal/resources/group_membership"
+	iamgrouppolicyattachment "github.com/cmrh/terraform-provider-scality/internal/resources/iam_group_policy_attachment"
 	iampolicy "github.com/cmrh/terraform-provider-scality/internal/resources/iam_policy"
 	iamrole "github.com/cmrh/terraform-provider-scality/internal/resources/iam_role"
 	iamrolepolicyattachment "github.com/cmrh/terraform-provider-scality/internal/resources/iam_role_policy_attachment"
@@ -272,6 +273,7 @@ func (p *ScalityProvider) resourceFactories() []func() resource.Resource {
 		userpolicy.NewUserPolicyResource,
 		group.NewGroupResource,
 		groupmembership.NewGroupMembershipResource,
+		iamgrouppolicyattachment.NewIAMGroupPolicyAttachmentResource,
 	}
 }
 

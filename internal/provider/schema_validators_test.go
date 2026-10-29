@@ -131,6 +131,10 @@ func TestSchemaValidatorsWired(t *testing.T) {
 		{"scality_iam_role_policy_attachment", "role_name", "string", 2},
 		{"scality_iam_role_policy_attachment", "policy_arn", "string", 1},
 
+		// --- iam_group_policy_attachment ---
+		{"scality_iam_group_policy_attachment", "group_name", "string", 2},
+		{"scality_iam_group_policy_attachment", "policy_arn", "string", 1},
+
 		// --- bucket ---
 		{"scality_bucket", "bucket", "string", 2},
 

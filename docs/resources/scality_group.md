@@ -43,6 +43,7 @@ output "group_arn" {
 
 - Use `scality_group_membership` to add users to the group.
 - Remove all members before deleting a group.
+- Use `scality_iam_group_policy_attachment` to attach managed policies. Attached policies must be detached before the group can be deleted; Terraform handles this when the attachment references the group.
 
 ## Import
 
