@@ -4,6 +4,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+### Added
+- `scality_iam_group_policy_attachment` attaches a managed policy to a group. Groups with attached policies can't be deleted, so `destroy` can now remove them and their account. (#115)
+
 ### Fixed
 - `scality_bucket` import now records Object Lock, versioning, and tags. Import left them null, so a config with `object_lock_enabled = true` planned a replacement of the bucket, and configured versioning or tags planned an in-place update. Only settings that are on server-side are recorded, so a config that omits them still plans clean. `object_lock_enabled` now treats unset and `false` as the same value, so switching between them no longer forces replacement. (#108)
 - `scality_bucket` with `object_lock_enabled = true` no longer fails to apply `versioning = true` with `InvalidBucketState`. Object Lock already enables versioning and the server rejects any versioning change; Update now skips the call when versioning is already enabled. (#108)

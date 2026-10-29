@@ -60,7 +60,7 @@ Resources fall into two credential tiers. Match the credential to the resource:
 | `scality_bucket`, `scality_bucket_policy`, `scality_bucket_encryption`, `scality_bucket_lifecycle`, `scality_bucket_object_lock`, `scality_bucket_replication`, `scality_bucket_logging` | Account |
 | `scality_user`, `scality_user_access_key`, `scality_user_policy` | Account |
 | `scality_group`, `scality_group_membership` | Account |
-| `scality_iam_policy`, `scality_iam_role`, `scality_iam_role_policy_attachment` | Account |
+| `scality_iam_policy`, `scality_iam_role`, `scality_iam_role_policy_attachment`, `scality_iam_group_policy_attachment` | Account |
 
 Data sources follow the same tier as their matching resource.
 
@@ -153,9 +153,10 @@ Notes:
 | [scality_user_policy](resources/scality_user_policy.md) | Inline policy attached to a user |
 | [scality_group](resources/scality_group.md) | IAM group |
 | [scality_group_membership](resources/scality_group_membership.md) | Group membership (users in a group) |
-| [scality_iam_policy](resources/scality_iam_policy.md) | IAM managed policy (attachable to roles) |
+| [scality_iam_policy](resources/scality_iam_policy.md) | IAM managed policy (attachable to roles and groups) |
 | [scality_iam_role](resources/scality_iam_role.md) | IAM role with trust policy |
 | [scality_iam_role_policy_attachment](resources/scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
+| [scality_iam_group_policy_attachment](resources/scality_iam_group_policy_attachment.md) | Attach a managed policy to a group |
 
 ## Data Sources
 

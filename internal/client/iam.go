@@ -1052,3 +1052,77 @@ func (c *IAMClient) RemoveUserFromGroup(ctx context.Context, accessKey, secretKe
 
 	return nil
 }
+
+func (c *IAMClient) AttachGroupPolicy(ctx context.Context, accessKey, secretKey, groupName, policyArn string) error {
+	params := url.Values{
+		"Action":    {"AttachGroupPolicy"},
+		"GroupName": {groupName},
+		"PolicyArn": {policyArn},
+	}
+
+	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+	if err != nil {
+		return fmt.Errorf("attach group policy: %w", err)
+	}
+
+	return nil
+}
+
+func (c *IAMClient) DetachGroupPolicy(ctx context.Context, accessKey, secretKey, groupName, policyArn string) error {
+	params := url.Values{
+		"Action":    {"DetachGroupPolicy"},
+		"GroupName": {groupName},
+		"PolicyArn": {policyArn},
+	}
+
+	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("detach group policy: %w", err)
+	}
+
+	return nil
+}
+
+type listAttachedGroupPoliciesResponse struct {
+	XMLName xml.Name `xml:"ListAttachedGroupPoliciesResponse"`
+	Result  struct {
+		AttachedPolicies []iamAttachedPolicy `xml:"AttachedPolicies>member"`
+		IsTruncated      bool                `xml:"IsTruncated"`
+		Marker           string              `xml:"Marker"`
+	} `xml:"ListAttachedGroupPoliciesResult"`
+}
+
+// ListAttachedGroupPolicies retrieves all managed policies attached to a group, walking pagination.
+func (c *IAMClient) ListAttachedGroupPolicies(ctx context.Context, accessKey, secretKey, groupName string) ([]iamAttachedPolicy, error) {
+	var all []iamAttachedPolicy
+	marker := ""
+	for {
+		params := url.Values{
+			"Action":    {"ListAttachedGroupPolicies"},
+			"GroupName": {groupName},
+		}
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			return nil, fmt.Errorf("list attached group policies: %w", err)
+		}
+
+		var page listAttachedGroupPoliciesResponse
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing list attached group policies response: %w", err)
+		}
+
+		all = append(all, page.Result.AttachedPolicies...)
+		if !page.Result.IsTruncated || page.Result.Marker == "" {
+			break
+		}
+		marker = page.Result.Marker
+	}
+	return all, nil
+}

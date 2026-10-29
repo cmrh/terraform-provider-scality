@@ -73,9 +73,10 @@ See [Delegated Cross-Account Management](docs/index.md#delegated-cross-account-m
 | [scality_user_policy](docs/resources/scality_user_policy.md) | Inline policy attached to a user |
 | [scality_group](docs/resources/scality_group.md) | IAM group |
 | [scality_group_membership](docs/resources/scality_group_membership.md) | Group membership |
-| [scality_iam_policy](docs/resources/scality_iam_policy.md) | IAM managed policy (attachable to roles) |
+| [scality_iam_policy](docs/resources/scality_iam_policy.md) | IAM managed policy (attachable to roles and groups) |
 | [scality_iam_role](docs/resources/scality_iam_role.md) | IAM role with trust policy |
 | [scality_iam_role_policy_attachment](docs/resources/scality_iam_role_policy_attachment.md) | Attach a managed policy to a role |
+| [scality_iam_group_policy_attachment](docs/resources/scality_iam_group_policy_attachment.md) | Attach a managed policy to a group |
 
 ## Quick Start
 

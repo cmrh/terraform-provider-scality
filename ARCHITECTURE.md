@@ -72,6 +72,7 @@ internal/
     ├── iam_policy/             # scality_iam_policy
     ├── iam_role/               # scality_iam_role
     ├── iam_role_policy_attachment/ # scality_iam_role_policy_attachment
+    ├── iam_group_policy_attachment/ # scality_iam_group_policy_attachment
     ├── user/                   # scality_user
     ├── user_access_key/        # scality_user_access_key
     ├── user_policy/            # scality_user_policy
@@ -88,7 +89,7 @@ Each resource is a package with:
 
 | Client | Auth | Wire Format | Used By |
 |--------|------|-------------|---------|
-| `IAMClient` | SigV4 (service `iam`) | form-encoded actions | account, user, user_access_key, user_policy, group, group_membership, iam_policy, iam_role, iam_role_policy_attachment |
+| `IAMClient` | SigV4 (service `iam`) | form-encoded actions | account, user, user_access_key, user_policy, group, group_membership, iam_policy, iam_role, iam_role_policy_attachment, iam_group_policy_attachment |
 | `S3Client` | SigV4 (service `s3`) | XML (JSON for bucket policy) | bucket, bucket_encryption, bucket_lifecycle, bucket_object_lock, bucket_policy, bucket_replication |
 | `ConsoleClient` | JWT (`x-access-token` header) | JSON/REST | console_account, account_access_key |
 
