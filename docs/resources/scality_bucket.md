@@ -42,7 +42,7 @@ resource "scality_bucket" "locked" {
 | `account_access_key` | String | No | Access key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `account_secret_key` | String | No | Secret key of the owning account. Sensitive. Omit to use the provider's assume_role credentials. |
 | `bucket` | String | Yes | Bucket name. Changing this replaces the resource. |
-| `object_lock_enabled` | Bool | No | Enable Object Lock on the bucket. Can only be set at creation time. Changing this replaces the resource. |
+| `object_lock_enabled` | Bool | No | Enable Object Lock on the bucket. Can only be set at creation time. Leave unset to keep the bucket's current setting. Setting a value that differs from the bucket's replaces the resource. |
 | `versioning` | Bool | No | `true` enables versioning; `false` leaves it off. Leave unset to not manage versioning. |
 | `tags` | Map(String) | No | Key-value tags for the bucket. |
 
