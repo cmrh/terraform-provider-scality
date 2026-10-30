@@ -38,8 +38,9 @@ func bucketValue(s schema.Schema, lock, versioning tftypes.Value) tftypes.Value 
 	})
 }
 
-// TestObjectLockRequiresReplace guards #108: null and false are equivalent, so an
-// imported (null) bucket never plans a replacement unless Object Lock really changes.
+// TestObjectLockRequiresReplace guards #108 and #121: null state and false are
+// equivalent, and unset config keeps the state value, so only a configured value
+// that differs from the bucket's plans a replacement.
 func TestObjectLockRequiresReplace(t *testing.T) {
 	ctx := context.Background()
 	s := bucketSchema(t)
@@ -62,34 +63,47 @@ func TestObjectLockRequiresReplace(t *testing.T) {
 	}
 
 	cases := []struct {
-		name         string
-		state, plan  tftypes.Value
-		wantReplaced bool
+		name          string
+		state, config tftypes.Value
+		wantReplaced  bool
+		wantPlan      tftypes.Value
 	}{
-		{"null to false", null, fls, false},
-		{"false to null", fls, null, false},
-		{"true to true", tru, tru, false},
-		{"null to true", null, tru, true},
-		{"true to null", tru, null, true},
-		{"false to true", fls, tru, true},
-		{"true to false", tru, fls, true},
-		{"null to unknown", null, unknown, true},
+		{"null to false", null, fls, false, fls},
+		{"false to unset", fls, null, false, fls},
+		{"true to unset", tru, null, false, tru},
+		{"null to unset", null, null, false, null},
+		{"true to true", tru, tru, false, tru},
+		{"null to true", null, tru, true, tru},
+		{"false to true", fls, tru, true, tru},
+		{"true to false", tru, fls, true, fls},
+		{"null to unknown", null, unknown, true, unknown},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Computed: the framework plans unset config as unknown before the modifiers run.
+			plan := tc.config
+			if plan.IsNull() {
+				plan = unknown
+			}
 			req := planmodifier.BoolRequest{
-				Path:       path.Root("object_lock_enabled"),
-				State:      tfsdk.State{Schema: s, Raw: bucketValue(s, tc.state, null)},
-				Plan:       tfsdk.Plan{Schema: s, Raw: bucketValue(s, tc.plan, null)},
-				StateValue: toBool(tc.state),
-				PlanValue:  toBool(tc.plan),
+				Path:        path.Root("object_lock_enabled"),
+				Config:      tfsdk.Config{Schema: s, Raw: bucketValue(s, tc.config, null)},
+				State:       tfsdk.State{Schema: s, Raw: bucketValue(s, tc.state, null)},
+				Plan:        tfsdk.Plan{Schema: s, Raw: bucketValue(s, plan, null)},
+				ConfigValue: toBool(tc.config),
+				StateValue:  toBool(tc.state),
+				PlanValue:   toBool(plan),
 			}
 			resp := &planmodifier.BoolResponse{PlanValue: req.PlanValue}
 			for _, m := range mods {
 				m.PlanModifyBool(ctx, req, resp)
+				req.PlanValue = resp.PlanValue
 			}
 			if resp.RequiresReplace != tc.wantReplaced {
 				t.Fatalf("RequiresReplace = %v, want %v", resp.RequiresReplace, tc.wantReplaced)
+			}
+			if !resp.PlanValue.Equal(toBool(tc.wantPlan)) {
+				t.Fatalf("PlanValue = %v, want %v", resp.PlanValue, tc.wantPlan)
 			}
 		})
 	}
@@ -138,5 +152,57 @@ func TestBucketUpdate_versioningAlreadyEnabled(t *testing.T) {
 	}
 	if putSeen {
 		t.Fatal("PutBucketVersioning sent to an already-Enabled bucket")
+	}
+}
+
+// TestBucketRead_refreshesObjectLock guards #121: Read records the bucket's Object
+// Lock setting, so state written before #108 (null) is corrected on refresh.
+// Without permission to read it, the state value is kept.
+func TestBucketRead_refreshesObjectLock(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   types.Bool
+	}{
+		{"enabled", http.StatusOK, `<ObjectLockConfiguration><ObjectLockEnabled>Enabled</ObjectLockEnabled></ObjectLockConfiguration>`, types.BoolValue(true)},
+		{"not configured", http.StatusNotFound, `<Error><Code>ObjectLockConfigurationNotFoundError</Code></Error>`, types.BoolValue(false)},
+		{"access denied", http.StatusForbidden, `<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`, types.BoolNull()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.Contains(r.URL.RawQuery, "object-lock") {
+					w.WriteHeader(tc.status)
+					_, _ = w.Write([]byte(tc.body))
+					return
+				}
+				w.WriteHeader(http.StatusOK) // HeadBucket
+			}))
+			defer server.Close()
+
+			r := bucket.NewBucketResource()
+			s := bucketSchema(t)
+			clients := &client.ProviderClients{S3: client.NewS3Client(server.URL, false)}
+			var cr resource.ConfigureResponse
+			r.(resource.ResourceWithConfigure).Configure(ctx, resource.ConfigureRequest{ProviderData: clients}, &cr)
+			if cr.Diagnostics.HasError() {
+				t.Fatalf("configure: %v", cr.Diagnostics.Errors())
+			}
+
+			null := tftypes.NewValue(tftypes.Bool, nil)
+			state := tfsdk.State{Schema: s, Raw: bucketValue(s, null, null)}
+			resp := &resource.ReadResponse{State: state}
+			r.Read(ctx, resource.ReadRequest{State: state}, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("unexpected Read error: %v", resp.Diagnostics.Errors())
+			}
+			var got types.Bool
+			resp.Diagnostics.Append(resp.State.GetAttribute(ctx, path.Root("object_lock_enabled"), &got)...)
+			if !got.Equal(tc.want) {
+				t.Fatalf("object_lock_enabled = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

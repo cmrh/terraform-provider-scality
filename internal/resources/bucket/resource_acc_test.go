@@ -354,6 +354,43 @@ func TestAccBucket_objectLockImport(t *testing.T) {
 	})
 }
 
+// TestAccBucket_objectLockUnset guards #121: unset object_lock_enabled keeps the
+// bucket's setting; removing it from an Object Lock bucket plans no replacement.
+func TestAccBucket_objectLockUnset(t *testing.T) {
+	name := acctest.RandomName("acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheckConsole(t) },
+		ProtoV6ProviderFactories: acctest.TestProtoV6ProviderFactories,
+		CheckDestroy:             acctest.CheckResourceDestroyed("scality_bucket"),
+		Steps: []resource.TestStep{
+			{ // unset at create: no Object Lock
+				Config: testAccBucketNoVersioningConfig(name),
+				Check:  resource.TestCheckResourceAttr("scality_bucket.test", "object_lock_enabled", "false"),
+			},
+			{ // a configured value that differs still replaces
+				Config: testAccBucketObjectLockConfig(name, ""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("scality_bucket.test", plancheck.ResourceActionDestroyBeforeCreate),
+					},
+				},
+				Check: resource.TestCheckResourceAttr("scality_bucket.test", "object_lock_enabled", "true"),
+			},
+			{ // removing the line keeps Object Lock
+				Config: testAccBucketNoVersioningConfig(name),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("scality_bucket.test", "object_lock_enabled", "true"),
+					checkBucketVersioningAPI("Enabled"),
+				),
+			},
+		},
+	})
+}
+
 // TestAccBucket_tagsEmptyRoundTrip guards the empty-collection round-trip: a
 // configured tags = {} must survive apply->read unchanged. Previously Read
 // forced an empty map to null, producing a perpetual "+ tags = {}" diff.

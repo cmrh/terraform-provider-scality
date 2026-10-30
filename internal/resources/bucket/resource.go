@@ -58,9 +58,11 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				},
 			},
 			"object_lock_enabled": schema.BoolAttribute{
-				MarkdownDescription: "Enable Object Lock on the bucket. Can only be set at creation time.",
+				MarkdownDescription: "Enable Object Lock on the bucket. Can only be set at creation time. Leave unset to keep the bucket's current setting.",
 				Optional:            true,
+				Computed:            true,
 				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
 					boolplanmodifier.RequiresReplaceIf(
 						objectLockRequiresReplace,
 						"Changing Object Lock requires replacing the bucket.",
@@ -84,8 +86,12 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 // importedPrivateKey marks state written by ImportState until the first Read populates it.
 const importedPrivateKey = "imported"
 
-// objectLockRequiresReplace treats null as false, so null <-> false never replaces the bucket.
+// objectLockRequiresReplace replaces only for a configured value that differs from
+// the bucket's; null state is treated as false.
 func objectLockRequiresReplace(ctx context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
+	if req.ConfigValue.IsNull() {
+		return
+	}
 	if req.PlanValue.IsUnknown() {
 		resp.RequiresReplace = true
 		return
@@ -156,7 +162,8 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		"bucket": bucket,
 	})
 
-	objectLockEnabled := !data.ObjectLockEnabled.IsNull() && data.ObjectLockEnabled.ValueBool()
+	objectLockEnabled := !data.ObjectLockEnabled.IsUnknown() && data.ObjectLockEnabled.ValueBool()
+	data.ObjectLockEnabled = types.BoolValue(objectLockEnabled)
 
 	if err := c.CreateBucket(ctx, ak, sk, bucket, objectLockEnabled); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket: %s", err))
@@ -221,6 +228,18 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
+	// Without s3:GetBucketObjectLockConfiguration, keep the state value.
+	lock, err := c.GetObjectLockConfiguration(ctx, ak, sk, bucket)
+	switch {
+	case err == nil:
+		data.ObjectLockEnabled = types.BoolValue(lock != nil && lock.Enabled)
+	case strings.Contains(err.Error(), "AccessDenied"):
+		tflog.Warn(ctx, "Cannot read bucket Object Lock; keeping state value", map[string]interface{}{"bucket": bucket})
+	default:
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket Object Lock: %s", err))
+		return
+	}
+
 	imported, diags := req.Private.GetKey(ctx, importedPrivateKey)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -282,14 +301,6 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 // readImported records only settings that are on server-side; anything off stays
 // null, so a config that omits it plans clean.
 func readImported(ctx context.Context, c *client.S3Client, ak, sk, bucket string, data *BucketResourceModel) error {
-	lock, err := c.GetObjectLockConfiguration(ctx, ak, sk, bucket)
-	if err != nil {
-		return err
-	}
-	if lock != nil && lock.Enabled {
-		data.ObjectLockEnabled = types.BoolValue(true)
-	}
-
 	status, err := c.GetBucketVersioning(ctx, ak, sk, bucket)
 	if err != nil {
 		return err
