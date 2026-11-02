@@ -20,6 +20,9 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 - `scality_console_account` in-place updates no longer plan `created_at`, `password`, `access_key` and `secret_key` as known after apply. Update never changes them; they now keep their state values in the plan. (#113)
 - The provider's debug-mode address is now `registry.terraform.io/cmrh/scality`, matching the published namespace. It was still `scality/scality`, so `-debug` reattach did not match configs using `source = "cmrh/scality"`.
 
+### Security
+- Built with Go 1.26.10, which fixes a `crypto/x509` vulnerability (GO-2026-6809) in the Go 1.26.9 standard library.
+
 ## [1.1.6] - 2026-10-19
 
 ### Fixed
