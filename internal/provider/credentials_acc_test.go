@@ -24,6 +24,7 @@ var credentialResources = []string{
 	"scality_iam_role.test",
 	"scality_iam_role_policy_attachment.test",
 	"scality_iam_group_policy_attachment.test",
+	"scality_iam_user_policy_attachment.test",
 }
 
 // testAccCredentialsConfig manages one of each account-level resource in
@@ -113,6 +114,13 @@ resource "scality_iam_group_policy_attachment" "test" {
   account_access_key = local.ak
   account_secret_key = local.sk
   group_name         = scality_group.test.group_name
+  policy_arn         = scality_iam_policy.test.arn
+}
+
+resource "scality_iam_user_policy_attachment" "test" {
+  account_access_key = local.ak
+  account_secret_key = local.sk
+  username           = scality_user.test.username
   policy_arn         = scality_iam_policy.test.arn
 }
 `, name, ak, sk)

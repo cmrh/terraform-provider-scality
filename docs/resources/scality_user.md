@@ -43,6 +43,7 @@ output "user_arn" {
 
 - Changing `username` forces replacement -- users cannot be renamed.
 - Delete the user's access keys and policies before deleting the user.
+- Use `scality_iam_user_policy_attachment` to attach managed policies. Attached policies must be detached before the user can be deleted; Terraform handles this when the attachment references the user.
 
 ## Import
 
