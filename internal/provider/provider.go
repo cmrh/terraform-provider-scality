@@ -28,6 +28,7 @@ import (
 	iampolicy "github.com/cmrh/terraform-provider-scality/internal/resources/iam_policy"
 	iamrole "github.com/cmrh/terraform-provider-scality/internal/resources/iam_role"
 	iamrolepolicyattachment "github.com/cmrh/terraform-provider-scality/internal/resources/iam_role_policy_attachment"
+	iamuserpolicyattachment "github.com/cmrh/terraform-provider-scality/internal/resources/iam_user_policy_attachment"
 	"github.com/cmrh/terraform-provider-scality/internal/resources/user"
 	useraccesskey "github.com/cmrh/terraform-provider-scality/internal/resources/user_access_key"
 	userpolicy "github.com/cmrh/terraform-provider-scality/internal/resources/user_policy"
@@ -274,6 +275,7 @@ func (p *ScalityProvider) resourceFactories() []func() resource.Resource {
 		group.NewGroupResource,
 		groupmembership.NewGroupMembershipResource,
 		iamgrouppolicyattachment.NewIAMGroupPolicyAttachmentResource,
+		iamuserpolicyattachment.NewIAMUserPolicyAttachmentResource,
 	}
 }
 

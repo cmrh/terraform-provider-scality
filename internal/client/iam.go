@@ -1135,3 +1135,77 @@ func (c *IAMClient) ListAttachedGroupPolicies(ctx context.Context, accessKey, se
 	}
 	return all, nil
 }
+
+func (c *IAMClient) AttachUserPolicy(ctx context.Context, accessKey, secretKey, userName, policyArn string) error {
+	params := url.Values{
+		"Action":    {"AttachUserPolicy"},
+		"UserName":  {userName},
+		"PolicyArn": {policyArn},
+	}
+
+	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+	if err != nil {
+		return fmt.Errorf("attach user policy: %w", err)
+	}
+
+	return nil
+}
+
+func (c *IAMClient) DetachUserPolicy(ctx context.Context, accessKey, secretKey, userName, policyArn string) error {
+	params := url.Values{
+		"Action":    {"DetachUserPolicy"},
+		"UserName":  {userName},
+		"PolicyArn": {policyArn},
+	}
+
+	_, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("detach user policy: %w", err)
+	}
+
+	return nil
+}
+
+type listAttachedUserPoliciesResponse struct {
+	XMLName xml.Name `xml:"ListAttachedUserPoliciesResponse"`
+	Result  struct {
+		AttachedPolicies []iamAttachedPolicy `xml:"AttachedPolicies>member"`
+		IsTruncated      bool                `xml:"IsTruncated"`
+		Marker           string              `xml:"Marker"`
+	} `xml:"ListAttachedUserPoliciesResult"`
+}
+
+// ListAttachedUserPolicies retrieves all managed policies attached to a user, walking pagination.
+func (c *IAMClient) ListAttachedUserPolicies(ctx context.Context, accessKey, secretKey, userName string) ([]iamAttachedPolicy, error) {
+	var all []iamAttachedPolicy
+	marker := ""
+	for {
+		params := url.Values{
+			"Action":   {"ListAttachedUserPolicies"},
+			"UserName": {userName},
+		}
+		if marker != "" {
+			params.Set("Marker", marker)
+		}
+
+		body, err := c.doSignedRequest(ctx, accessKey, secretKey, params)
+		if err != nil {
+			return nil, fmt.Errorf("list attached user policies: %w", err)
+		}
+
+		var page listAttachedUserPoliciesResponse
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing list attached user policies response: %w", err)
+		}
+
+		all = append(all, page.Result.AttachedPolicies...)
+		if !page.Result.IsTruncated || page.Result.Marker == "" {
+			break
+		}
+		marker = page.Result.Marker
+	}
+	return all, nil
+}
