@@ -4,6 +4,8 @@ All notable changes to the Scality Terraform Provider are documented in this fil
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-06
+
 ### Added
 - `scality_iam_user_policy_attachment` attaches a managed policy to a user. Users with attached policies can't be deleted, so `destroy` detaches the policy first when the attachment references the user. (#125)
 
